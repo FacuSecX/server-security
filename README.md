@@ -45,7 +45,11 @@ El proyecto está pensado para análisis defensivo y administración de servidor
 * 📄 **Reportes SSH:** generación opcional de informes mediante un componente administrado en el VPS.
 * 🩺 **Estado del sistema:** uso de disco, memoria, Tailscale, UFW y servicios systemd.
 
+  
+
 > ⚠️ **Importante:** un evento “Permitido” significa que una conexión nueva coincidió con una regla `ALLOW` del firewall. No confirma por sí solo una autenticación SSH o una solicitud web exitosa.
+<br>
+<br>
 
 <p align="center">
 <img src="http://imgfz.com/i/QSOBCag.png" title="Serverpanel-Security"> 
