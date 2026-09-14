@@ -1,0 +1,6 @@
+{
+  "report_script": "/opt/server-security/ssh-report.sh",
+  "report_output_dir": "/var/lib/server-security/reports",
+  "report_timezone": "UTC",
+  "protected_networks": []
+}
