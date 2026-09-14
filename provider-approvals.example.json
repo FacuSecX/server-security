@@ -1,0 +1,9 @@
+[
+  {
+    "asn": "AS64500",
+    "name": "Proveedor de ejemplo",
+    "prefix_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "approved_at": "AAAA-MM-DD",
+    "note": "Aprobado después de verificar que los prefijos corresponden exclusivamente a hosting/VPS."
+  }
+]

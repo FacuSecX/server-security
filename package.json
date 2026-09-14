@@ -1,0 +1,15 @@
+{
+  "name": "server-security-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Panel local de observabilidad y control de seguridad para un VPS Linux a través de Tailscale y SSH.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "python -m unittest discover -s tests -v",
+    "check": "node --check server.mjs && node --check dist/app.js"
+  }
+}
