@@ -4,6 +4,8 @@
 <p align="center">
 <img src="http://imgfz.com/i/IhXRxKJ.png" title="Serverpanel-Security"> 
 </p>
+<br>
+<br>
 
 <p align="center">
 <a href="https://github.com/FacuSecX"><img title="Autor" src="https://img.shields.io/badge/Author-Facu%20-blue?style=for-the-badge&logo=github"></a>
