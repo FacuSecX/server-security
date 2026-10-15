@@ -1,0 +1,15 @@
+/*
+Server Security Monitor v2.0
+Created by FacuSecX
+https://github.com/FacuSecX/
+*/
+:root{--server-bar-height:34px}
+.server-banner{position:fixed;top:0;left:0;right:0;z-index:25;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:18px;height:34px;padding:6px 16px;background:var(--panel);color:var(--text);border-bottom:1px solid var(--line);font-size:.72rem;line-height:20px;white-space:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.server-banner::-webkit-scrollbar{display:none}.server-banner>:first-child{margin-left:auto}.server-banner>:last-child{margin-right:auto}
+.server-identity{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;flex-shrink:0}.server-identity strong{font-size:.75rem;font-weight:600;letter-spacing:.01em}.server-identity .server-public-ip{font-family:ui-monospace,Consolas,monospace;font-size:.75rem;color:var(--blue);overflow-wrap:normal}.server-banner-state{color:var(--green);font-size:.64rem;white-space:nowrap}.server-banner-state:before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:currentColor;margin-right:5px}.server-stale .server-banner-state{color:var(--yellow)}
+.server-hardware{display:flex;align-items:center;gap:16px;flex-wrap:nowrap;flex-shrink:0}.server-hardware>div{display:flex;align-items:center;gap:6px}.server-hardware span{color:var(--muted);font-size:.63rem;text-transform:uppercase;letter-spacing:.04em}.server-hardware strong{font-size:.7rem;font-weight:500;font-variant-numeric:tabular-nums}.server-hardware small{color:var(--muted);font-size:.63rem}
+.app-shell{padding-top:var(--server-bar-height)}.sidebar{top:var(--server-bar-height);height:calc(100vh - var(--server-bar-height))}
+.server-reboot-panel{margin-top:18px;padding:22px;display:flex;align-items:center;justify-content:space-between;gap:20px}.server-reboot-panel h2{margin:0 0 8px;font-size:1rem}.server-reboot-panel p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.7;max-width:760px}.server-reboot-panel button{flex-shrink:0}.server-reboot-panel .error{color:var(--red)}
+.server-reboot-dialog{width:min(560px,calc(100vw - 32px));padding:26px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);color:var(--text);box-shadow:0 24px 90px #0005}.server-reboot-dialog::backdrop{background:#0009;backdrop-filter:blur(4px)}.server-reboot-dialog h2{margin:0 0 18px}.server-reboot-dialog p{font-size:.86rem;line-height:1.7}.server-reboot-target{font-weight:700;color:var(--blue);overflow-wrap:anywhere}.server-reboot-dialog .port-confirm-check{margin:20px 0;font-size:.8rem;line-height:1.6}.server-reboot-dialog .confirm-actions{display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap}
+.system-info div{gap:12px}#systemCpuInfo{max-width:75%;overflow-wrap:anywhere;text-align:right;line-height:1.5}
+@media(max-width:780px){.server-banner{padding:6px 10px;gap:14px}.server-identity{gap:8px}.server-hardware{gap:12px}.server-hardware>div{gap:5px}.server-reboot-panel{flex-direction:column;align-items:stretch}.server-reboot-panel button{align-self:flex-start}}

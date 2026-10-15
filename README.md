@@ -14,10 +14,8 @@ https://github.com/FacuSecX/
 
 Supervisá y administrá la seguridad de tu servidor Linux desde un panel web local en Windows. Consultá eventos, gestioná puertos y servicios, investigá direcciones IP y recibí alertas por accesos no autorizados, sin exponer la interfaz web a Internet.
 
- <br>
-
 <p align="center">
-<img alt="Resumen de seguridad del servidor" src="http://imgfz.com/i/mPMtgnL.png" title="Server Security Monitor v2.0"> 
+<img alt="Resumen de seguridad del servidor" src="http://imgfz.com/i/IhXRxKJ.png" title="Server Security Monitor v2.0"> 
 </p>
 
 ## ✨ Funciones principales
@@ -52,9 +50,9 @@ Supervisá y administrá la seguridad de tu servidor Linux desde un panel web lo
 - ⚙️ **Instalador automático:** Detección de Debian, Ubuntu, CentOS Stream y Arch; instalación de dependencias, progreso, verificaciones y log detallado.
 
 Un evento **Permitido** del firewall indica que el tráfico coincidió con una regla de acceso. **No confirma una autenticación**. Las alertas de acceso se basan en registros o sesiones autenticadas de los servicios; no se disparan por un simple escaneo de puertos. En MySQL, la detección disponible depende del servicio y su registro de conexiones; una comprobación de sesiones puede no observar conexiones muy breves.
- <br>
+
 <p align="center">
-<img alt="Seguridad SSH y registros de accesos" src="http://imgfz.com/i/JZQ2ikx.png" title="Server Security Monitor v2.0"> 
+<img alt="Seguridad SSH y registros de accesos" src="http://imgfz.com/i/QSOBCag.png" title="Server Security Monitor v2.0"> 
 </p>
 
 ## 🏗️ Cómo funciona

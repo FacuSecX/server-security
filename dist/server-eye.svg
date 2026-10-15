@@ -1,0 +1,14 @@
+<!--
+Server Security Monitor v2.0
+Created by FacuSecX
+https://github.com/FacuSecX/
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>Server Monitor · Server Security</title>
+  <rect width="64" height="64" rx="18" fill="#0c1d2b"/>
+  <path d="M32 9 51 17v14c0 12-11 21-19 25-8-4-19-13-19-25V17L32 9Z" stroke="#68bfff" stroke-width="2.7" stroke-linejoin="round"/>
+  <path d="M18 31c3.7-6 8.4-9 14-9s10.3 3 14 9c-3.7 6-8.4 9-14 9s-10.3-3-14-9Z" stroke="#8aefca" stroke-width="2.7" stroke-linejoin="round"/>
+  <circle cx="32" cy="31" r="4.5" fill="#8aefca"/>
+  <circle cx="33.5" cy="29.5" r="1.4" fill="#fff"/>
+  <path d="M27 47h10" stroke="#68bfff" stroke-width="2.7" stroke-linecap="round"/>
+</svg>

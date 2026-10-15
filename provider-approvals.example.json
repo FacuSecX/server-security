@@ -1,0 +1,9 @@
+[
+  {
+    "asn": "AS_NUMERO_CONFIRMADO",
+    "name": "Proveedor revisado por el administrador",
+    "prefix_digest": "HUELLA_SHA256_MOSTRADA_POR_LA_EVALUACION",
+    "approved_at": "AAAA-MM-DD",
+    "note": "Aprobado después de verificar que los prefijos corresponden exclusivamente a alojamiento de servidores."
+  }
+]
