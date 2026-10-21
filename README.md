@@ -26,6 +26,19 @@ Supervisá y administrá tu servidor Linux desde un panel local en Windows: cons
 <img alt="Resumen de seguridad del servidor" src="http://imgfz.com/i/GmuYwUL.png" title="Server Security Monitor v3.0">
 </p>
 
+
+## 🎯 Objetivo del proyecto
+
+El objetivo de **Server Security Monitor** es **automatizar la instalación y administración de servicios en servidores Linux para usuarios que recién empiezan**, desde una interfaz visual en Windows. Buscamos reducir las tareas manuales y facilitar la puesta en marcha de aplicaciones sin exigir conocimientos avanzados de la terminal.
+
+El proyecto busca:
+
+- **Simplificar las instalaciones:** preparar las dependencias, la configuración inicial y el inicio de los servicios desde el panel.
+- **Centralizar la administración:** gestionar servicios, puertos, usuarios, bases de datos y servidores de juego desde una misma interfaz.
+- **Facilitar la supervisión:** mostrar el estado del servidor, el tráfico de red y las alertas para comprender qué está ocurriendo.
+- **Acompañar el aprendizaje:** ofrecer controles claros y confirmaciones que ayuden a entender las acciones antes de aplicarlas.
+- **Administrar distintos VPS:** reutilizar las cuentas del panel y mantener separado el historial de cada servidor.
+
 ## ✨ Funciones principales
 
 - 📊 **Resumen e historial:** eventos, IP únicas, paquetes descartados y nivel de riesgo, con historial local por servidor.
@@ -137,6 +150,12 @@ El servicio de alertas funciona en Linux y puede continuar aunque cierres el pan
 - Las cuentas del panel se comparten entre conexiones, pero los datos de cada servidor se guardan por separado.
 - Conservá en privado contraseñas, llaves, datos locales y respaldos.
 - Revisá el alcance antes de borrar registros: la limpieza elimina el historial seleccionado.
+
+## ⚠️ Limitaciones
+
+Actualmente, el panel está probado en **Debian 12 y Debian 13**. Las demás distribuciones todavía no se han verificado y pueden presentar errores durante la instalación o el funcionamiento de algunos módulos.
+
+La compatibilidad completa con otras distribuciones aún no está garantizada. En futuras actualizaciones ampliaremos las pruebas y mejoraremos la compatibilidad, incluyendo **Ubuntu y CentOS Stream**.
 
 ## 🤝 Autor
 
