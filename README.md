@@ -159,7 +159,7 @@ La compatibilidad completa con otras distribuciones aún no está garantizada. E
 
 ## 💡 Beneficios de un VPS frente a un web hosting
 
-Seguramente te preguntarás: **«¿Por qué usar un panel y complicarme si puedo contratar un web hosting y configurarlo todo más fácil?»** Un hosting compartido es práctico para una web sencilla, pero un VPS te ofrece más libertad:
+Seguramente te preguntarás: **¿Por qué usar un panel y complicarme si puedo contratar un web hosting y configurarlo todo más fácil?**  Un hosting compartido es práctico para una web sencilla, pero un VPS te ofrece más libertad:
 
 - **Precio:** podés reunir varios proyectos en un mismo servidor y aprovechar mejor tu presupuesto. El ahorro depende del plan y de los recursos que necesites.
 - **Acceso root:** tenés permisos de administrador para instalar software y configurar el sistema.
