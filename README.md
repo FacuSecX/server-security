@@ -161,4 +161,8 @@ La compatibilidad completa con otras distribuciones aún no está garantizada. E
 
 **Panel creado por [FacuSecX](https://github.com/FacuSecX/) · Versión 3.0**
 
+⭐ **Si el proyecto te resulta útil, agradecemos que nos dejes una [estrella en el repositorio](https://github.com/FacuSecX/server-security).** Tu apoyo nos ayuda a darlo a conocer y a que más personas puedan descubrirlo.
+
+También agradecemos tus sugerencias y reportes de errores: nos ayudan a mejorar el panel, ampliar la compatibilidad y priorizar nuevas funciones.
+
 [Telegram](https://t.me/FacuSecX) · [Apoyar el proyecto en PayPal](https://paypal.me/FacuSecX)
