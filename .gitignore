@@ -1,0 +1,41 @@
+# Local configuration and credentials
+config.json
+**/config.json
+.env
+.env.*
+!.env.example
+*.dpapi
+*.pem
+*.key
+*.ppk
+*.pfx
+*.p12
+provider-approvals.json
+# User data and generated reports
+data/
+**/data/
+Informes/
+**/Informes/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log
+*.jsonl
+*.bak
+*.tmp
+*.pdb
+backups/
+backup/
+before-*/
+# Build and editor output
+build/
+**/bin/
+**/obj/
+__pycache__/
+*.pyc
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

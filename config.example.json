@@ -1,0 +1,24 @@
+{
+  "listenHost": "127.0.0.1",
+  "listenPort": 8766,
+  "refreshSeconds": 20,
+  "initialHistoryHours": 168,
+  "geoLookup": true,
+  "maxGeoLookupsPerCycle": 100,
+  "trustedSshIps": [],
+  "reports": {
+    "localOutputDir": "",
+    "maxDays": 7
+  },
+  "ssh": {
+    "host": "",
+    "port": 22,
+    "user": "",
+    "plinkPath": "",
+    "keyPath": "",
+    "hostKeyFingerprint": "",
+    "authMode": "password",
+    "passwordEnv": "SERVER_MONITOR_SSH_PASSWORD",
+    "pageantPath": ""
+  }
+}
