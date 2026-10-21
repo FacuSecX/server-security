@@ -1,0 +1,1136 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+PROGRAM_NAME="${0##*/}"
+SINCE="48 hours ago"
+UNTIL="now"
+PERIOD_LABEL="48h"
+PERIOD_TITLE="ÚLTIMAS 48 HORAS"
+TOP=0
+USE_GEO=1
+REFRESH_GEO=0
+SSH_UNIT="ssh.service"
+SSH_PORT=22
+SIMILARITY_THRESHOLD=80
+MIN_PATTERN_USERS=10
+OUTPUT_DIR="."
+REPORT_TIMEZONE="${REPORT_TIMEZONE:-America/Argentina/Buenos_Aires}"
+CACHE_TTL=$((30 * 24 * 60 * 60))
+CACHE_ROOT="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}"
+CACHE_DIR="${CACHE_ROOT}/ssh-fallos"
+CACHE_FILE="${CACHE_DIR}/geo.tsv"
+GEO_API="https://ipwho.is"
+
+usage() {
+  cat <<EOF
+Uso:
+  sudo ./${PROGRAM_NAME} [opciones]
+
+Opciones:
+  --hours N           Analizar las últimas N horas (ej.: --hours 10)
+  --since FECHA       Inicio personalizado para journalctl
+  --top N             Incluir solamente las N IP con más intentos
+  --all               Incluir todas las IP (comportamiento predeterminado)
+  --no-geo            No consultar país ni ISP
+  --refresh-geo       Ignorar los datos geográficos guardados
+  --similarity N      Coincidencia mínima entre diccionarios, 1-100 (por defecto: 80)
+  --pattern-min N     Mínimo de usuarios únicos por IP para comparar (por defecto: 10)
+  --timezone ZONA     Zona IANA para horas y fechas (por defecto: America/Argentina/Buenos_Aires)
+  --unit UNIDAD       Unidad systemd de SSH (por defecto: ssh.service)
+  --output-dir DIR    Directorio para los informes (por defecto: directorio actual)
+  -h, --help          Mostrar esta ayuda
+
+Ejemplos:
+  sudo ./${PROGRAM_NAME}
+  sudo ./${PROGRAM_NAME} --hours 24
+  sudo ./${PROGRAM_NAME} --hours 10
+  sudo ./${PROGRAM_NAME} --since "3 days ago"
+  sudo ./${PROGRAM_NAME} --similarity 80 --pattern-min 10
+  sudo ./${PROGRAM_NAME} --output-dir /home/debian
+
+Sin opciones de período, se consultan las últimas 48 horas.
+Al finalizar, si UFW está activo, se ofrecen para bloqueo las IP públicas nuevas.
+La IP de la sesión SSH actual nunca se bloquea automáticamente.
+EOF
+}
+
+die() {
+  printf 'Error: %s\n' "$*" >&2
+  exit 1
+}
+
+need_value() {
+  [[ $# -ge 2 && -n "${2:-}" ]] || die "falta el valor de $1"
+}
+
+while (($#)); do
+  case "$1" in
+    --hours)
+      need_value "$@"
+      [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "--hours debe ser un entero mayor que cero"
+      SINCE="$2 hours ago"
+      PERIOD_LABEL="${2}h"
+      PERIOD_TITLE="ÚLTIMAS ${2} HORAS"
+      shift 2
+      ;;
+    --since)
+      need_value "$@"
+      SINCE="$2"
+      PERIOD_LABEL="personalizado"
+      PERIOD_TITLE="PERÍODO PERSONALIZADO"
+      shift 2
+      ;;
+    --top)
+      need_value "$@"
+      [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "--top debe ser un entero mayor que cero"
+      TOP="$2"
+      shift 2
+      ;;
+    --all)
+      TOP=0
+      shift
+      ;;
+    --no-geo)
+      USE_GEO=0
+      shift
+      ;;
+    --refresh-geo)
+      REFRESH_GEO=1
+      shift
+      ;;
+    --similarity)
+      need_value "$@"
+      [[ "$2" =~ ^[1-9][0-9]*$ ]] && ((10#$2 <= 100)) ||
+        die "--similarity debe ser un entero entre 1 y 100"
+      SIMILARITY_THRESHOLD=$((10#$2))
+      shift 2
+      ;;
+    --pattern-min)
+      need_value "$@"
+      [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "--pattern-min debe ser un entero mayor que cero"
+      MIN_PATTERN_USERS=$((10#$2))
+      shift 2
+      ;;
+    --timezone)
+      need_value "$@"
+      REPORT_TIMEZONE="$2"
+      shift 2
+      ;;
+    --unit)
+      need_value "$@"
+      SSH_UNIT="$2"
+      shift 2
+      ;;
+    --output-dir)
+      need_value "$@"
+      OUTPUT_DIR="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "opción desconocida: $1 (usá --help)"
+      ;;
+  esac
+done
+
+for command_name in awk sort mktemp date; do
+  command -v "$command_name" >/dev/null 2>&1 || die "no se encontró el comando: $command_name"
+done
+
+[[ "$REPORT_TIMEZONE" =~ ^[A-Za-z0-9._+-]+(/[A-Za-z0-9._+-]+)*$ ]] &&
+  [[ "$REPORT_TIMEZONE" != *".."* ]] || die "zona horaria inválida: $REPORT_TIMEZONE"
+[[ -f "/usr/share/zoneinfo/${REPORT_TIMEZONE}" ]] ||
+  die "no se encontró la zona horaria: $REPORT_TIMEZONE"
+export TZ="$REPORT_TIMEZONE"
+
+if ((USE_GEO)); then
+  command -v curl >/dev/null 2>&1 || die "falta curl (instalalo con: apt install curl)"
+  command -v jq >/dev/null 2>&1 || die "falta jq (instalalo con: apt install jq)"
+fi
+
+TMP_DIR="$(mktemp -d)"
+cleanup() {
+  rm -rf -- "$TMP_DIR"
+}
+trap cleanup EXIT HUP INT TERM
+
+RAW_LOG="$TMP_DIR/ssh.log"
+EVENTS="$TMP_DIR/events.tsv"
+COUNTS="$TMP_DIR/counts.tsv"
+REPORT="$TMP_DIR/report.tsv"
+
+command -v journalctl >/dev/null 2>&1 || die "no se encontró journalctl"
+if ! journalctl \
+    --unit "$SSH_UNIT" \
+    --since "$SINCE" \
+    --until "$UNTIL" \
+    --no-pager \
+    --output short-iso-precise >"$RAW_LOG"; then
+  die "no se pudo leer el journal; probá ejecutando el programa con sudo"
+fi
+
+# Formato generado:
+# IP<TAB>usuario<TAB>tipo de fallo<TAB>fecha/hora exacta<TAB>puerto de origen.
+# Se usa el PID del proceso sshd como identificador de sesión. Así se pueden
+# reconocer fallos publickey/password y también conexiones que terminan en
+# preauth, sin sumar dos veces "Invalid user" + "Failed ..." de la misma sesión.
+awk '
+  BEGIN { OFS = "\t" }
+
+  function valid_method(method) {
+    return method == "password" ||
+           method == "publickey" ||
+           method == "none" ||
+           method == "hostbased" ||
+           method == "keyboard-interactive" ||
+           method == "keyboard-interactive/pam" ||
+           method == "gssapi-with-mic"
+  }
+
+  function session_id(    i, value) {
+    for (i = 1; i <= NF; i++) {
+      if ($i ~ /^(sshd|sshd-session)\[[0-9]+\]:$/) {
+        value = $i
+        sub(/:$/, "", value)
+        return value
+      }
+    }
+
+    return "line:" NR
+  }
+
+  function save_event(session, address, account, kind, priority, occurred_at, source_port) {
+    if (address == "" || account == "") {
+      return
+    }
+
+    if (!(session in event_priority) || priority > event_priority[session]) {
+      if (source_port == "" && session in event_port) {
+        source_port = event_port[session]
+      }
+      event_ip[session] = address
+      event_user[session] = account
+      event_kind[session] = kind
+      event_time[session] = occurred_at
+      event_port[session] = source_port
+      event_priority[session] = priority
+    }
+  }
+
+  {
+    session = session_id()
+    ip = ""
+    user = ""
+    method = ""
+    occurred_at = $1
+    source_port = ""
+
+    for (i = 1; i < NF; i++) {
+      if ($i == "port" && $(i + 1) ~ /^[0-9]+$/) {
+        source_port = $(i + 1)
+      }
+    }
+
+    # Una autenticación aceptada convierte la sesión en exitosa y se excluye.
+    for (i = 1; i <= NF; i++) {
+      if ($i == "Accepted" && i < NF && valid_method($(i + 1))) {
+        accepted[session] = 1
+      }
+    }
+
+    # Fallos explícitos: Failed publickey/password/etc.
+    for (i = 1; i <= NF; i++) {
+      if ($i == "Failed" && i < NF && valid_method($(i + 1))) {
+        method = $(i + 1)
+      }
+
+      if ($i == "for" && i < NF) {
+        if ($(i + 1) == "invalid" && $(i + 2) == "user" && i + 3 <= NF) {
+          user = $(i + 3)
+        } else {
+          user = $(i + 1)
+        }
+      }
+
+      if ($i == "from" && i < NF) {
+        ip = $(i + 1)
+      }
+    }
+
+    if (method != "" && user != "" && ip != "") {
+      save_event(session, ip, user, method, 40, occurred_at, source_port)
+    }
+
+    # Usuario inexistente; puede no producir una línea "Failed publickey".
+    if ($0 ~ /Invalid user/) {
+      ip = ""
+      user = ""
+
+      for (i = 1; i <= NF; i++) {
+        if ($i == "Invalid" && $(i + 1) == "user" && i + 2 <= NF) {
+          user = $(i + 2)
+        }
+        if ($i == "from" && i < NF) {
+          ip = $(i + 1)
+        }
+      }
+
+      save_event(session, ip, user, "invalid-user", 20, occurred_at, source_port)
+    }
+
+    # El cliente abandona durante preauth después de probar un usuario/llave.
+    if ($0 ~ /\[preauth\]/ &&
+        ($0 ~ /authenticating user/ || $0 ~ /invalid user/)) {
+      ip = ""
+      user = ""
+
+      for (i = 1; i <= NF; i++) {
+        if ($i == "user" && i + 2 <= NF) {
+          user = $(i + 1)
+          if ($(i + 2) == "from" && i + 3 <= NF) {
+            ip = $(i + 3)
+          } else {
+            ip = $(i + 2)
+          }
+        }
+      }
+
+      save_event(session, ip, user, "preauth", 10, occurred_at, source_port)
+    }
+
+    # Usuario expresamente bloqueado por AllowUsers/DenyUsers u otra regla.
+    if ($0 ~ /not allowed because/) {
+      ip = ""
+      user = ""
+
+      for (i = 1; i <= NF; i++) {
+        if ($i == "User" && i < NF) {
+          user = $(i + 1)
+        }
+        if ($i == "from" && i < NF) {
+          ip = $(i + 1)
+        }
+      }
+
+      save_event(session, ip, user, "not-allowed", 30, occurred_at, source_port)
+    }
+
+    # Fallos PAM que algunos sistemas registran antes de "Failed password".
+    if ($0 ~ /authentication failure/) {
+      ip = ""
+      user = ""
+
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^rhost=/) {
+          ip = $i
+          sub(/^rhost=/, "", ip)
+        }
+        if ($i ~ /^user=/) {
+          user = $i
+          sub(/^user=/, "", user)
+        }
+      }
+
+      save_event(session, ip, user, "pam", 30, occurred_at, source_port)
+    }
+  }
+
+  END {
+    for (session in event_ip) {
+      if (!(session in accepted)) {
+        port = event_port[session]
+        if (port == "") port = "-"
+        print event_ip[session], event_user[session], event_kind[session], event_time[session], port
+      }
+    }
+  }
+' "$RAW_LOG" >"$EVENTS"
+
+if [[ ! -s "$EVENTS" ]]; then
+  printf 'No se encontraron fallos de autenticación SSH en el período indicado.\n'
+  printf 'Período: %s  ->  %s\n' "$SINCE" "$UNTIL"
+  printf 'Zona horaria: %s\n' "$REPORT_TIMEZONE"
+  exit 0
+fi
+
+awk -F '\t' '{ count[$1]++ } END { for (ip in count) print count[ip] "\t" ip }' \
+  "$EVENTS" | sort -t $'\t' -k1,1nr -k2,2 >"$COUNTS"
+
+TOTAL_UNIQUE_IPS="$(wc -l <"$COUNTS" | tr -d ' ')"
+
+if ((TOP > 0)); then
+  awk -v limit="$TOP" 'NR <= limit' "$COUNTS" >"${COUNTS}.limited"
+  COUNTS="${COUNTS}.limited"
+fi
+
+if ((USE_GEO)); then
+  mkdir -p -- "$CACHE_DIR"
+  touch "$CACHE_FILE"
+fi
+
+is_private_or_special() {
+  local ip="$1"
+  local normalized_ip="${ip,,}"
+
+  case "$normalized_ip" in
+    0.*|10.*|127.*|169.254.*|192.168.*|255.*) return 0 ;;
+    100.*)
+      local second="${normalized_ip#100.}"
+      second="${second%%.*}"
+      ((second >= 64 && second <= 127)) && return 0
+      ;;
+    172.*)
+      local second="${normalized_ip#172.}"
+      second="${second%%.*}"
+      ((second >= 16 && second <= 31)) && return 0
+      ;;
+    198.18.*|198.19.*) return 0 ;;
+    ::|::1|fc*|fd*|fe8*|fe9*|fea*|feb*) return 0 ;;
+  esac
+
+  return 1
+}
+
+lookup_geo() {
+  local ip="$1"
+  local now cutoff cached response geo country isp
+
+  if is_private_or_special "$ip"; then
+    printf 'Red privada/especial\tLocal o reservada\n'
+    return
+  fi
+
+  now="$(date +%s)"
+  cutoff=$((now - CACHE_TTL))
+
+  if ((REFRESH_GEO == 0)); then
+    cached="$(awk -F '\t' -v wanted="$ip" -v oldest="$cutoff" \
+      '$1 == wanted && $2 >= oldest { print $3 "\t" $4; exit }' "$CACHE_FILE")"
+    if [[ -n "$cached" ]]; then
+      printf '%s\n' "$cached"
+      return
+    fi
+  fi
+
+  if response="$(curl \
+      --fail \
+      --silent \
+      --show-error \
+      --connect-timeout 4 \
+      --max-time 10 \
+      --retry 1 \
+      "${GEO_API}/${ip}?fields=success,country,connection,message&lang=es" 2>/dev/null)"; then
+    geo="$(jq -er '
+      if .success == true then
+        [(.country // "Desconocido"),
+         (.connection.isp // .connection.org // "Desconocido")] | @tsv
+      else
+        empty
+      end
+    ' <<<"$response" 2>/dev/null || true)"
+  else
+    geo=""
+  fi
+
+  if [[ -z "$geo" ]]; then
+    country="Sin datos"
+    isp="Sin datos"
+  else
+    IFS=$'\t' read -r country isp <<<"$geo"
+    printf '%s\t%s\t%s\t%s\n' "$ip" "$now" "$country" "$isp" >>"$CACHE_FILE"
+  fi
+
+  printf '%s\t%s\n' "$country" "$isp"
+}
+
+mkdir -p -- "$OUTPUT_DIR" || die "no se pudo crear el directorio de salida: $OUTPUT_DIR"
+OUTPUT_DIR="$(cd -- "$OUTPUT_DIR" && pwd -P)"
+[[ -w "$OUTPUT_DIR" ]] || die "no se puede escribir en: $OUTPUT_DIR"
+
+STAMP="$(date '+%Y%m%d_%H%M%S')"
+OUTPUT_TXT="${OUTPUT_DIR}/ssh_reporte_${PERIOD_LABEL}_${STAMP}.txt"
+OUTPUT_CSV="${OUTPUT_DIR}/ssh_reporte_${PERIOD_LABEL}_${STAMP}.csv"
+OUTPUT_EVENTS_CSV="${OUTPUT_DIR}/ssh_eventos_${PERIOD_LABEL}_${STAMP}.csv"
+DETAIL="$TMP_DIR/detail.txt"
+SUMMARY="$TMP_DIR/summary.txt"
+IP_USERS="$TMP_DIR/ip-users.tsv"
+EVENT_EXPORT="$TMP_DIR/event-export.tsv"
+
+: >"$DETAIL"
+: >"$IP_USERS"
+printf 'PUESTO\tINTENTOS\tIP\tPAÍS\tISP / ORGANIZACIÓN\tUSUARIOS ÚNICOS\tUSUARIOS PROBADOS\tPRIMER EVENTO\tÚLTIMO EVENTO\tPUERTOS DE ORIGEN\n' >"$REPORT"
+
+rank=0
+while IFS=$'\t' read -r attempts ip; do
+  [[ -n "$ip" ]] || continue
+  rank=$((rank + 1))
+  USER_COUNTS="$TMP_DIR/users_${rank}.tsv"
+  EVENTS_BY_IP="$TMP_DIR/events_${rank}.tsv"
+
+  awk -F '\t' -v wanted="$ip" '
+    $1 == wanted { count[$2]++ }
+    END {
+      for (user in count) {
+        print count[user] "\t" user
+      }
+    }
+  ' "$EVENTS" | sort -t $'\t' -k1,1nr -k2,2 >"$USER_COUNTS"
+
+  awk -F '\t' -v wanted="$ip" '
+    BEGIN { OFS = "\t" }
+    $1 == wanted { print $4, $5, $2, $3 }
+  ' "$EVENTS" | sort -t $'\t' -k1,1 -k3,3 >"$EVENTS_BY_IP"
+
+  awk -F '\t' -v address="$ip" '{ print address "\t" $2 }' \
+    "$USER_COUNTS" >>"$IP_USERS"
+
+  unique_users="$(wc -l <"$USER_COUNTS" | tr -d ' ')"
+  users="$(awk -F '\t' '
+    BEGIN { first = 1 }
+    {
+      if (!first) printf ","
+      printf "%s", $2
+      first = 0
+    }
+  ' "$USER_COUNTS")"
+  first_event="$(awk -F '\t' 'NR == 1 { print $1; exit }' "$EVENTS_BY_IP")"
+  last_event="$(awk -F '\t' 'END { print $1 }' "$EVENTS_BY_IP")"
+  source_ports="$(awk -F '\t' '
+    $2 != "" && $2 != "-" { count[$2]++ }
+    END {
+      first = 1
+      for (port in count) {
+        if (!first) printf ","
+        printf "%s", port
+        if (count[port] > 1) printf " (%s)", count[port]
+        first = 0
+      }
+    }
+  ' "$EVENTS_BY_IP")"
+  [[ -n "$source_ports" ]] || source_ports="Sin datos"
+
+  if ((USE_GEO)); then
+    geo="$(lookup_geo "$ip")"
+    IFS=$'\t' read -r country isp <<<"$geo"
+  else
+    country="-"
+    isp="-"
+  fi
+
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$rank" "$attempts" "$ip" "$country" "$isp" "$unique_users" "$users" \
+    "$first_event" "$last_event" "$source_ports" >>"$REPORT"
+
+  {
+    printf '%s\n' '================================================================================'
+    printf '#%03d  IP: %s\n' "$rank" "$ip"
+    printf 'Intentos fallidos : %s\n' "$attempts"
+    printf 'País              : %s\n' "$country"
+    printf 'ISP / organización: %s\n' "$isp"
+    printf 'Usuarios únicos   : %s\n' "$unique_users"
+    printf 'Primer evento     : %s\n' "$first_event"
+    printf 'Último evento     : %s\n' "$last_event"
+    printf 'Puertos de origen : %s\n' "$source_ports"
+    printf '\nIntentos por usuario (mayor a menor):\n'
+    awk -F '\t' '{ printf "  %7s  %s\n", $1, $2 }' "$USER_COUNTS"
+    printf '\n'
+  } >>"$DETAIL"
+done <"$COUNTS"
+
+# Cronología completa de los eventos incluidos en el ranking. La marca de tiempo
+# proviene de journalctl short-iso-precise e incluye fracciones de segundo y UTC offset.
+{
+  printf 'FECHA_HORA\tZONA_HORARIA\tIP\tPUERTO_ORIGEN\tUSUARIO\tTIPO_FALLO\n'
+  awk -F '\t' -v zone="$REPORT_TIMEZONE" '
+    BEGIN { OFS = "\t" }
+    NR == FNR { selected[$2] = 1; next }
+    $1 in selected { print $4, zone, $1, $5, $2, $3 }
+  ' "$COUNTS" "$EVENTS" | sort -t $'\t' -k1,1 -k3,3
+} >"$EVENT_EXPORT"
+
+TOTAL_FAILURES="$(wc -l <"$EVENTS" | tr -d ' ')"
+INCLUDED_FAILURES="$(awk -F '\t' 'NR > 1 { total += $2 } END { print total + 0 }' "$REPORT")"
+INCLUDED_IPS=$rank
+
+# Resumen compacto: no mezcla la lista extensa de usuarios con el ranking.
+awk -F '\t' '
+  BEGIN {
+    printf "%-7s %9s  %-39s  %-18s  %-48s  %8s\n", \
+      "PUESTO", "INTENTOS", "IP", "PAÍS", "ISP / ORGANIZACIÓN", "USUARIOS"
+    printf "%-7s %9s  %-39s  %-18s  %-48s  %8s\n", \
+      "-------", "---------", "---------------------------------------", \
+      "------------------", "------------------------------------------------", "--------"
+  }
+  NR > 1 {
+    country = $4
+    isp = $5
+    if (length(country) > 18) country = substr(country, 1, 15) "..."
+    if (length(isp) > 48) isp = substr(isp, 1, 45) "..."
+    printf "#%-6s %9s  %-39s  %-18s  %-48s  %8s\n", \
+      $1, $2, $3, country, isp, $6
+  }
+' "$REPORT" >"$SUMMARY"
+
+PROVIDER_DATA="$TMP_DIR/provider-ranking.tsv"
+PROVIDER_REPORT="$TMP_DIR/provider-report.txt"
+PROVIDER_GROUP_COUNT=0
+PROVIDER_COUNT=0
+
+# Agrupa las IP incluidas en el informe por el nombre exacto del ISP/organización
+# informado por la API geográfica. La comparación ignora mayúsculas y minúsculas,
+# pero conserva el nombre original para mostrarlo. También contabiliza IP únicas y
+# países observados para distinguir volumen de intentos de diversidad de origen.
+if ((USE_GEO)); then
+  awk -F '\t' '
+    BEGIN { OFS = "\t" }
+
+    NR > 1 {
+      provider = $5
+      if (provider == "" || provider == "-") provider = "Sin datos"
+
+      key = tolower(provider)
+      if (!(key in display_name)) display_name[key] = provider
+
+      attempts[key] += $2
+
+      ip_key = key SUBSEP $3
+      if (!(ip_key in seen_ip)) {
+        seen_ip[ip_key] = 1
+        unique_ips[key]++
+      }
+
+      country = $4
+      if (country != "" && country != "-" && country != "Sin datos") {
+        country_key = key SUBSEP country
+        if (!(country_key in seen_country)) {
+          seen_country[country_key] = 1
+          if (countries[key] != "") countries[key] = countries[key] ", "
+          countries[key] = countries[key] country
+        }
+      }
+    }
+
+    END {
+      for (key in attempts) {
+        country_list = countries[key]
+        if (country_list == "") country_list = "Sin datos"
+        print attempts[key], unique_ips[key], display_name[key], country_list
+      }
+    }
+  ' "$REPORT" | sort -t $'\t' -k1,1nr -k2,2nr -k3,3 >"$PROVIDER_DATA"
+
+  PROVIDER_GROUP_COUNT="$(wc -l <"$PROVIDER_DATA" | tr -d ' ')"
+  PROVIDER_COUNT="$(awk -F '\t' '
+    $3 != "Sin datos" && $3 != "Local o reservada" { count++ }
+    END { print count + 0 }
+  ' "$PROVIDER_DATA")"
+
+  {
+    printf 'RANKING POR PROVEEDOR / ISP\n'
+    printf '%s\n' '================================================================================'
+    printf 'Proveedores/ISP identificados: %s\n' "$PROVIDER_COUNT"
+    printf 'Grupos totales (incluye datos no identificados): %s\n' "$PROVIDER_GROUP_COUNT"
+    printf 'Base del ranking: intentos fallidos correspondientes a las IP incluidas.\n\n'
+
+    awk -F '\t' -v total="$INCLUDED_FAILURES" '
+      BEGIN {
+        printf "%-7s %9s  %8s  %10s  %-55s  %s\n", \
+          "PUESTO", "INTENTOS", "% TOTAL", "IP ÚNICAS", "ISP / ORGANIZACIÓN", "PAÍSES"
+        printf "%-7s %9s  %8s  %10s  %-55s  %s\n", \
+          "-------", "---------", "--------", "----------", \
+          "-------------------------------------------------------", "------------------"
+      }
+
+      {
+        percentage = total > 0 ? (100 * $1 / total) : 0
+        printf "#%-6d %9d  %7.2f%%  %10d  %-55s  %s\n", \
+          NR, $1, percentage, $2, $3, $4
+      }
+    ' "$PROVIDER_DATA"
+
+    printf '\nInterpretación:\n'
+    printf '  INTENTOS  = fallos SSH acumulados desde todas las IP del proveedor.\n'
+    printf '  IP ÚNICAS = direcciones de origen distintas atribuidas al proveedor.\n'
+    printf '\nADVERTENCIA: la agrupación usa el texto devuelto por ipwho.is. Variantes de\n'
+    printf 'nombre pueden aparecer separadas. Antes de bloquear un proveedor completo,\n'
+    printf 'confirmá el ASN y sus rangos en documentación o registros oficiales.\n'
+  } >"$PROVIDER_REPORT"
+else
+  {
+    printf 'RANKING POR PROVEEDOR / ISP\n'
+    printf '%s\n' '================================================================================'
+    printf 'No disponible porque el informe fue ejecutado con --no-geo.\n'
+  } >"$PROVIDER_REPORT"
+fi
+
+SIMILAR_PAIRS="$TMP_DIR/similar-pairs.tsv"
+GROUP_MAP="$TMP_DIR/pattern-groups.tsv"
+PATTERN_REPORT="$TMP_DIR/pattern-report.txt"
+PATTERN_GROUP_COUNT=0
+PATTERN_PAIR_COUNT=0
+PATTERN_IP_COUNT=0
+
+# Compara conjuntos de usuarios únicos mediante Jaccard:
+# intersección(A,B) / unión(A,B). Las IP con muy pocos usuarios se excluyen
+# para que coincidencias triviales como "root" no generen falsos positivos.
+awk -F '\t' -v threshold="$SIMILARITY_THRESHOLD" -v minimum="$MIN_PATTERN_USERS" '
+  BEGIN { OFS = "\t" }
+
+  {
+    address = $1
+    account = $2
+
+    if (!(address in known_ip)) {
+      known_ip[address] = 1
+      ip_list[++ip_count] = address
+    }
+
+    key = address SUBSEP account
+    if (!(key in known_user)) {
+      known_user[key] = 1
+      user_count[address]++
+      users[address SUBSEP user_count[address]] = account
+    }
+  }
+
+  END {
+    for (a_index = 1; a_index <= ip_count; a_index++) {
+      a = ip_list[a_index]
+      if (user_count[a] < minimum) continue
+
+      for (b_index = a_index + 1; b_index <= ip_count; b_index++) {
+        b = ip_list[b_index]
+        if (user_count[b] < minimum) continue
+
+        intersection = 0
+        for (user_index = 1; user_index <= user_count[a]; user_index++) {
+          account = users[a SUBSEP user_index]
+          if ((b SUBSEP account) in known_user) intersection++
+        }
+
+        union_size = user_count[a] + user_count[b] - intersection
+        if (union_size == 0) continue
+
+        similarity = 100 * intersection / union_size
+        if (similarity + 0.000001 >= threshold) {
+          printf "%.2f\t%d\t%d\t%d\t%d\t%s\t%s\n", \
+            similarity, intersection, union_size, user_count[a], user_count[b], a, b
+        }
+      }
+    }
+  }
+' "$IP_USERS" | sort -t $'\t' -k1,1nr -k6,6 -k7,7 >"$SIMILAR_PAIRS"
+
+{
+  printf 'ANÁLISIS DE POSIBLES DICCIONARIOS O CAMPAÑAS COMPARTIDAS\n'
+  printf '%s\n' '================================================================================'
+  printf 'Método                 : similitud de Jaccard sobre usuarios únicos\n'
+  printf 'Coincidencia mínima    : %s%%\n' "$SIMILARITY_THRESHOLD"
+  printf 'Usuarios mínimos por IP: %s\n' "$MIN_PATTERN_USERS"
+  printf '\nADVERTENCIA: una coincidencia indica una posible herramienta, diccionario o\n'
+  printf 'campaña compartida. No demuestra que las IP pertenezcan a la misma persona.\n'
+} >"$PATTERN_REPORT"
+
+if [[ -s "$SIMILAR_PAIRS" ]]; then
+  PATTERN_PAIR_COUNT="$(wc -l <"$SIMILAR_PAIRS" | tr -d ' ')"
+
+  # Forma componentes conectados: si A coincide con B y B con C, las tres IP
+  # aparecen en el mismo grupo, conservando debajo los porcentajes por pareja.
+  awk -F '\t' '
+    BEGIN { OFS = "\t" }
+
+    function find_root(value) {
+      if (!(value in parent)) parent[value] = value
+      if (parent[value] != value) parent[value] = find_root(parent[value])
+      return parent[value]
+    }
+
+    function unite(left, right, left_root, right_root) {
+      left_root = find_root(left)
+      right_root = find_root(right)
+
+      if (left_root == right_root) return
+      if (left_root < right_root) parent[right_root] = left_root
+      else parent[left_root] = right_root
+    }
+
+    { unite($6, $7) }
+
+    END {
+      for (address in parent) print find_root(address), address
+    }
+  ' "$SIMILAR_PAIRS" | sort -t $'\t' -k1,1 -k2,2 >"$GROUP_MAP"
+
+  PATTERN_IP_COUNT="$(awk -F '\t' '!seen[$2]++ { count++ } END { print count + 0 }' \
+    "$GROUP_MAP")"
+
+  while IFS= read -r group_root; do
+    [[ -n "$group_root" ]] || continue
+    PATTERN_GROUP_COUNT=$((PATTERN_GROUP_COUNT + 1))
+    MEMBERS_FILE="$TMP_DIR/pattern-members-${PATTERN_GROUP_COUNT}.txt"
+    SIGNATURE_FILE="$TMP_DIR/pattern-signature-${PATTERN_GROUP_COUNT}.tsv"
+
+    awk -F '\t' -v root="$group_root" '$1 == root { print $2 }' \
+      "$GROUP_MAP" | sort >"$MEMBERS_FILE"
+    member_count="$(wc -l <"$MEMBERS_FILE" | tr -d ' ')"
+
+    {
+      printf '\n\nGRUPO %s — posible diccionario/campaña compartida\n' "$PATTERN_GROUP_COUNT"
+      printf '%s\n' '--------------------------------------------------------------------------------'
+      printf 'IP relacionadas: %s\n\n' "$member_count"
+      printf 'IP, país e ISP:\n'
+
+      while IFS= read -r member_ip; do
+        meta="$(awk -F '\t' -v wanted="$member_ip" \
+          'NR > 1 && $3 == wanted { print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6; exit }' \
+          "$REPORT")"
+        IFS=$'\t' read -r meta_rank meta_attempts meta_ip meta_country meta_isp meta_users \
+          <<<"$meta"
+        printf '  #%s  %-39s  %s intentos | %s usuarios\n' \
+          "$meta_rank" "$meta_ip" "$meta_attempts" "$meta_users"
+        printf '       País: %s | ISP: %s\n' "$meta_country" "$meta_isp"
+      done <"$MEMBERS_FILE"
+    } >>"$PATTERN_REPORT"
+
+    # Firma del grupo: usuarios presentes en al menos el porcentaje configurado
+    # de las IP del grupo.
+    awk -F '\t' -v threshold="$SIMILARITY_THRESHOLD" '
+      NR == FNR {
+        member[$1] = 1
+        member_total++
+        next
+      }
+
+      ($1 in member) { occurrences[$2]++ }
+
+      END {
+        for (account in occurrences) {
+          prevalence = 100 * occurrences[account] / member_total
+          if (prevalence + 0.000001 >= threshold) {
+            printf "%.2f\t%d\t%s\n", prevalence, occurrences[account], account
+          }
+        }
+      }
+    ' "$MEMBERS_FILE" "$IP_USERS" \
+      | sort -t $'\t' -k1,1nr -k3,3 >"$SIGNATURE_FILE"
+
+    {
+      if [[ -s "$SIGNATURE_FILE" ]]; then
+        printf '\nFirma de usuarios compartidos (presentes en al menos %s%% del grupo):\n' \
+          "$SIMILARITY_THRESHOLD"
+        awk -F '\t' '{ printf "  %6.2f%%  %s/%s IP  %s\n", $1, $2, total, $3 }' \
+          total="$member_count" "$SIGNATURE_FILE"
+      else
+        printf '\nFirma compartida: sin usuarios presentes en %s%% de todo el grupo;\n' \
+          "$SIMILARITY_THRESHOLD"
+        printf 'el agrupamiento se produjo por coincidencias encadenadas entre parejas.\n'
+      fi
+
+      printf '\nCoincidencias por pareja:\n'
+      awk -F '\t' '
+        NR == FNR { member[$1] = 1; next }
+        (($6 in member) && ($7 in member)) {
+          printf "  %6.2f%%  %s <-> %s  (%s usuarios compartidos de %s)\n", \
+            $1, $6, $7, $2, $3
+        }
+      ' "$MEMBERS_FILE" "$SIMILAR_PAIRS"
+    } >>"$PATTERN_REPORT"
+  done < <(awk -F '\t' '!seen[$1]++ { print $1 }' "$GROUP_MAP")
+else
+  printf '\nNo se encontraron pares de IP con una coincidencia de al menos %s%%.\n' \
+    "$SIMILARITY_THRESHOLD" >>"$PATTERN_REPORT"
+fi
+
+{
+  printf '\n\nResumen de patrones:\n'
+  printf '  Grupos encontrados : %s\n' "$PATTERN_GROUP_COUNT"
+  printf '  IP relacionadas    : %s\n' "$PATTERN_IP_COUNT"
+  printf '  Parejas coincidentes: %s\n' "$PATTERN_PAIR_COUNT"
+} >>"$PATTERN_REPORT"
+
+{
+  printf 'REPORTE DE INTENTOS FALLIDOS SSH — %s\n' "$PERIOD_TITLE"
+  printf '%s\n' '================================================================================'
+  printf 'Generado          : %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')"
+  printf 'Zona horaria      : %s\n' "$REPORT_TIMEZONE"
+  printf 'Servicio analizado: %s\n' "$SSH_UNIT"
+  printf 'Período           : %s -> %s\n' "$SINCE" "$UNTIL"
+  printf 'Fallos totales    : %s\n' "$TOTAL_FAILURES"
+  printf 'IP únicas totales : %s\n' "$TOTAL_UNIQUE_IPS"
+  printf 'Fallos incluidos  : %s\n' "$INCLUDED_FAILURES"
+  printf 'IP incluidas      : %s\n' "$INCLUDED_IPS"
+  if ((USE_GEO)); then
+    printf 'Proveedores/ISP   : %s identificados\n' "$PROVIDER_COUNT"
+  else
+    printf 'Proveedores/ISP   : no calculado (--no-geo)\n'
+  fi
+  printf 'Grupos de patrones: %s\n' "$PATTERN_GROUP_COUNT"
+
+  if ((TOP > 0)); then
+    printf 'Filtro aplicado   : solamente las %s IP con más intentos\n' "$TOP"
+  else
+    printf 'Filtro aplicado   : todas las IP\n'
+  fi
+
+  printf '\nRANKING POR IP\n\n'
+  cat "$SUMMARY"
+  printf '\n\n'
+  cat "$PROVIDER_REPORT"
+  printf '\n\nDETALLE POR IP Y USUARIO\n\n'
+  cat "$DETAIL"
+  printf '\n\n'
+  cat "$PATTERN_REPORT"
+} >"$OUTPUT_TXT"
+
+# CSV compatible con LibreOffice/Excel. Todos los campos se entrecomillan para
+# preservar ISP con comas y la lista completa de usuarios.
+awk -F '\t' '
+  {
+    for (i = 1; i <= NF; i++) {
+      value = $i
+      gsub(/"/, "\"\"", value)
+      printf "%s\"%s\"", (i > 1 ? "," : ""), value
+    }
+    printf "\n"
+  }
+' "$REPORT" >"$OUTPUT_CSV"
+
+awk -F '\t' '
+  {
+    for (i = 1; i <= NF; i++) {
+      value = $i
+      gsub(/"/, "\"\"", value)
+      printf "%s\"%s\"", (i > 1 ? "," : ""), value
+    }
+    printf "\n"
+  }
+' "$EVENT_EXPORT" >"$OUTPUT_EVENTS_CSV"
+
+chmod 600 "$OUTPUT_TXT" "$OUTPUT_CSV" "$OUTPUT_EVENTS_CSV"
+
+printf 'Informe generado correctamente.\n\n'
+printf 'Archivo legible : %s\n' "$OUTPUT_TXT"
+printf 'Archivo CSV     : %s\n' "$OUTPUT_CSV"
+printf 'Eventos exactos : %s\n' "$OUTPUT_EVENTS_CSV"
+printf '\nVista previa — primeras 10 IP:\n\n'
+awk 'NR <= 12' "$SUMMARY"
+printf '\nPatrones de diccionario: %s grupos, %s IP relacionadas y %s parejas con similitud >= %s%%.\n' \
+  "$PATTERN_GROUP_COUNT" "$PATTERN_IP_COUNT" "$PATTERN_PAIR_COUNT" "$SIMILARITY_THRESHOLD"
+
+if ((USE_GEO)); then
+  printf 'Proveedores/ISP identificados en el informe: %s.\n' "$PROVIDER_COUNT"
+fi
+
+if ((TOP > 0)); then
+  printf '\nEl informe está limitado a %s IP. Usá --all para incluirlas todas.\n' "$TOP"
+fi
+
+ufw_status_blocks_ip() {
+  local status_file="$1"
+  local wanted_ip="$2"
+  local wanted_port="$3"
+
+  awk -v wanted="$wanted_ip" -v port="$wanted_port" '
+    {
+      has_deny = 0
+      has_in = 0
+      has_ip = 0
+      has_target = 0
+
+      for (i = 1; i <= NF; i++) {
+        if ($i == "DENY") has_deny = 1
+        if ($i == "IN") has_in = 1
+        if ($i == wanted) has_ip = 1
+        if ($i == port || $i == port "/tcp" || $i == "Anywhere") has_target = 1
+      }
+
+      if (has_deny && has_in && has_ip && has_target) found = 1
+    }
+    END { exit(found ? 0 : 1) }
+  ' "$status_file"
+}
+
+is_ip_literal() {
+  local ip="$1"
+
+  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] ||
+    [[ "$ip" =~ ^[0-9A-Fa-f:.]+$ ]]
+}
+
+offer_ufw_blocking() {
+  local ufw_status_file="$TMP_DIR/ufw-status.txt"
+  local ufw_verify_file="$TMP_DIR/ufw-verify.txt"
+  local ufw_output_file="$TMP_DIR/ufw-command.txt"
+  local candidates="$TMP_DIR/ufw-candidates.tsv"
+  local already_blocked="$TMP_DIR/ufw-already.tsv"
+  local excluded="$TMP_DIR/ufw-excluded.tsv"
+  local blocked_now="$TMP_DIR/ufw-blocked-now.tsv"
+  local failed_blocks="$TMP_DIR/ufw-failed.tsv"
+  local current_ssh_ip=""
+  local attempts ip answer candidate_count already_count excluded_count
+  local blocked_count failed_count
+  local -a ssh_connection_parts=()
+
+  : >"$candidates"
+  : >"$already_blocked"
+  : >"$excluded"
+  : >"$blocked_now"
+  : >"$failed_blocks"
+
+  if ! command -v ufw >/dev/null 2>&1; then
+    printf '\nUFW: no está instalado; no se ofreció el bloqueo automático.\n'
+    printf '\nUFW: no está instalado; no se ofreció el bloqueo automático.\n' >>"$OUTPUT_TXT"
+    return
+  fi
+
+  if ((EUID != 0)); then
+    printf '\nUFW: para bloquear IP, ejecutá nuevamente el informe con sudo.\n'
+    printf '\nUFW: para bloquear IP, ejecutá nuevamente el informe con sudo.\n' >>"$OUTPUT_TXT"
+    return
+  fi
+
+  if ! LC_ALL=C ufw status numbered >"$ufw_status_file" 2>"$ufw_output_file"; then
+    printf '\nUFW: no se pudo consultar el estado del firewall. No se modificó ninguna regla.\n'
+    printf '\nUFW: no se pudo consultar el estado del firewall. No se modificó ninguna regla.\n' \
+      >>"$OUTPUT_TXT"
+    return
+  fi
+
+  if ! awk '$1 == "Status:" && $2 == "active" { active = 1 } END { exit(active ? 0 : 1) }' \
+      "$ufw_status_file"; then
+    printf '\nUFW está inactivo. No se habilitó ni se modificó automáticamente.\n'
+    printf '\nUFW está inactivo. No se habilitó ni se modificó automáticamente.\n' \
+      >>"$OUTPUT_TXT"
+    return
+  fi
+
+  if [[ -n "${SSH_CONNECTION:-}" ]]; then
+    read -r -a ssh_connection_parts <<<"$SSH_CONNECTION"
+    current_ssh_ip="${ssh_connection_parts[0]:-}"
+  elif [[ -n "${SSH_CLIENT:-}" ]]; then
+    read -r -a ssh_connection_parts <<<"$SSH_CLIENT"
+    current_ssh_ip="${ssh_connection_parts[0]:-}"
+  fi
+
+  while IFS=$'\t' read -r attempts ip; do
+    [[ -n "$ip" ]] || continue
+
+    if ! is_ip_literal "$ip"; then
+      printf '%s\t%s\t%s\n' "$attempts" "$ip" "IP inválida" >>"$excluded"
+    elif [[ -n "$current_ssh_ip" && "$ip" == "$current_ssh_ip" ]]; then
+      printf '%s\t%s\t%s\n' "$attempts" "$ip" "IP de la sesión SSH actual" >>"$excluded"
+    elif is_private_or_special "$ip"; then
+      printf '%s\t%s\t%s\n' "$attempts" "$ip" "red privada o reservada" >>"$excluded"
+    elif ufw_status_blocks_ip "$ufw_status_file" "$ip" "$SSH_PORT"; then
+      printf '%s\t%s\n' "$attempts" "$ip" >>"$already_blocked"
+    else
+      printf '%s\t%s\n' "$attempts" "$ip" >>"$candidates"
+    fi
+  done <"$COUNTS"
+
+  candidate_count="$(wc -l <"$candidates" | tr -d ' ')"
+  already_count="$(wc -l <"$already_blocked" | tr -d ' ')"
+  excluded_count="$(wc -l <"$excluded" | tr -d ' ')"
+
+  {
+    printf '\n\nREVISIÓN DEL FIREWALL UFW\n'
+    printf '%s\n' '================================================================================'
+    printf 'Puerto protegido             : %s/tcp\n' "$SSH_PORT"
+    printf 'IP de esta sesión SSH        : %s\n' "${current_ssh_ip:-no detectada}"
+    printf 'IP ya bloqueadas previamente : %s\n' "$already_count"
+    printf 'IP excluidas por seguridad   : %s\n' "$excluded_count"
+    printf 'IP nuevas candidatas         : %s\n' "$candidate_count"
+
+    if [[ -s "$already_blocked" ]]; then
+      printf '\nYa bloqueadas — no se duplicaron reglas:\n'
+      awk -F '\t' '{ printf "  %7s intentos  %s\n", $1, $2 }' "$already_blocked"
+    fi
+
+    if [[ -s "$excluded" ]]; then
+      printf '\nExcluidas automáticamente:\n'
+      awk -F '\t' '{ printf "  %7s intentos  %-39s  %s\n", $1, $2, $3 }' "$excluded"
+    fi
+
+    if [[ -s "$candidates" ]]; then
+      printf '\nCandidatas nuevas para bloqueo:\n'
+      awk -F '\t' '{ printf "  %7s intentos  %s\n", $1, $2 }' "$candidates"
+    fi
+  } >>"$OUTPUT_TXT"
+
+  if ((candidate_count == 0)); then
+    printf '\nUFW: no hay IP nuevas para bloquear; las detectadas ya estaban bloqueadas o fueron excluidas.\n'
+    return
+  fi
+
+  printf '\nUFW encontró %s IP nuevas candidatas para bloquear en el puerto %s/tcp.\n' \
+    "$candidate_count" "$SSH_PORT"
+  printf 'La lista completa quedó guardada en: %s\n' "$OUTPUT_TXT"
+
+  if [[ ! -t 0 ]]; then
+    printf 'No hay una terminal interactiva: se omitió el bloqueo y no se modificó UFW.\n'
+    printf '\nResultado UFW: bloqueo omitido por ejecución no interactiva.\n' >>"$OUTPUT_TXT"
+    return
+  fi
+
+  printf '\n¿Deseás bloquear TODAS estas IP con UFW? [s/N]: '
+  read -r answer
+
+  case "$answer" in
+    s|S|si|SI|Si|sí|SÍ|Sí) ;;
+    *)
+      printf 'Operación cancelada. No se modificó ninguna regla de UFW.\n'
+      printf '\nResultado UFW: operación cancelada por el usuario.\n' >>"$OUTPUT_TXT"
+      return
+      ;;
+  esac
+
+  printf '\nAplicando reglas UFW...\n'
+
+  while IFS=$'\t' read -r attempts ip; do
+    [[ -n "$ip" ]] || continue
+
+    if LC_ALL=C ufw insert 1 deny from "$ip" to any port "$SSH_PORT" proto tcp \
+        >"$ufw_output_file" 2>&1; then
+      if LC_ALL=C ufw status numbered >"$ufw_verify_file" 2>/dev/null &&
+          ufw_status_blocks_ip "$ufw_verify_file" "$ip" "$SSH_PORT"; then
+        printf '%s\t%s\n' "$attempts" "$ip" >>"$blocked_now"
+        printf '  [OK] %s bloqueada\n' "$ip"
+      else
+        printf '%s\t%s\t%s\n' "$attempts" "$ip" "regla no visible tras insertarla" \
+          >>"$failed_blocks"
+        printf '  [ERROR] %s no pudo verificarse\n' "$ip"
+      fi
+    else
+      printf '%s\t%s\t%s\n' "$attempts" "$ip" "ufw rechazó la regla" >>"$failed_blocks"
+      printf '  [ERROR] %s fue rechazada por UFW\n' "$ip"
+    fi
+  done <"$candidates"
+
+  blocked_count="$(wc -l <"$blocked_now" | tr -d ' ')"
+  failed_count="$(wc -l <"$failed_blocks" | tr -d ' ')"
+
+  {
+    printf '\nResultado UFW:\n'
+    printf '  Bloqueadas y verificadas: %s\n' "$blocked_count"
+    printf '  Fallidas                : %s\n' "$failed_count"
+
+    if [[ -s "$blocked_now" ]]; then
+      printf '\nReglas agregadas:\n'
+      awk -F '\t' '{ printf "  %7s intentos  %s\n", $1, $2 }' "$blocked_now"
+    fi
+
+    if [[ -s "$failed_blocks" ]]; then
+      printf '\nReglas fallidas:\n'
+      awk -F '\t' '{ printf "  %7s intentos  %-39s  %s\n", $1, $2, $3 }' "$failed_blocks"
+    fi
+  } >>"$OUTPUT_TXT"
+
+  printf '\nBloqueo finalizado: %s IP bloqueadas; %s fallidas.\n' "$blocked_count" "$failed_count"
+  printf 'El resultado quedó registrado en: %s\n' "$OUTPUT_TXT"
+}
+
+offer_ufw_blocking

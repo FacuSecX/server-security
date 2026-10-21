@@ -1,0 +1,30 @@
+.notification-bell{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:36px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);cursor:pointer}
+.notification-bell:hover{color:var(--blue);border-color:var(--blue)}
+.notification-count{position:absolute;right:-5px;top:-6px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0 4px;border-radius:12px;background:#d82e49;color:#fff;font-size:10px;font-weight:800;line-height:1;border:2px solid var(--panel)}
+.notification-count[hidden]{display:none}.notification-bell.monitor-warning{border-style:dashed}
+.notifications-dialog{width:min(660px,calc(100vw - 28px));max-height:82vh;padding:0}
+.notifications-dialog .dialog-surface{padding:22px;max-height:82vh;overflow-y:auto}
+.notifications-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.notifications-toolbar button{font-size:12px}.notifications-list{display:grid;gap:10px}
+.notification-item{border:1px solid var(--line);border-left:3px solid var(--red);background:var(--bg);border-radius:9px;padding:13px 15px;overflow-wrap:anywhere}
+.notification-item.is-read{border-left-color:var(--line)}
+.notification-item-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--text)}
+.notification-item time,.notification-item small{font-size:11px;color:var(--muted)}
+.notification-item p{margin:6px 0;font-size:12px;line-height:1.5;color:var(--muted)}
+.notification-item .notification-ip{font-size:14px;font-family:ui-monospace,monospace;color:var(--text)}
+.notification-item button{margin-top:5px;font-size:12px}
+.notifications-note,.notifications-empty{font-size:12px;line-height:1.6;color:var(--muted);margin:15px 0 0}
+#notificationsError{color:var(--red);font-size:12px}#notificationsError:empty{display:none}
+#notificationsMore{display:block;margin:15px auto}#notificationsMore[hidden]{display:none}
+@media(max-width:650px){.top-actions{flex-wrap:wrap}.notification-item-heading{align-items:flex-start;flex-direction:column}.notifications-dialog .dialog-surface{padding:16px}}
+
+.authorized-content{padding:0 18px 20px}.authorized-content>p{font-size:13px;line-height:1.65;color:var(--muted)}
+.authorized-form{display:flex;gap:12px;align-items:flex-end;margin:20px 0}.authorized-form label{display:grid;gap:8px;flex:1;max-width:500px;font-size:13px}.authorized-form input{width:100%;font:inherit}
+#authorizedError:empty{display:none}#authorizedDialog{max-width:min(550px,calc(100vw - 28px));padding:24px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px}
+#authorizedDialog p{font-size:14px;line-height:1.6;overflow-wrap:anywhere}@media(max-width:650px){.authorized-form{flex-direction:column;align-items:stretch}.authorized-form label{max-width:none}}
+
+.notification-read-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.notification-delete{color:var(--red)}.notification-delete:disabled{opacity:.45}
+
+.alert-sound-pending{position:fixed;right:18px;bottom:44px;z-index:55;border:1px solid var(--red,#ed5468);border-radius:12px;background:var(--panel);color:var(--text);padding:10px 16px;box-shadow:0 4px 20px #0003}.alert-sound-pending[hidden]{display:none}#alertsForm .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}#alertsForm input[type=password],#alertsForm input[type=text]{width:100%;min-width:0}#view-alerts .panel{margin-bottom:18px}#alertsRuntime.error,#alertsError{color:var(--red,#d72e46)}
+#view-alerts>.panel{padding:20px}#view-alerts .panel-heading{padding:0;margin-bottom:18px}#view-alerts h2{font-size:18px;margin:0 0 8px}#view-alerts p{font-size:14px;line-height:1.6}#alertsForm .filters label{display:grid;gap:7px;font-size:13px}#alertsForm .filters{margin:20px 0}#alertsState.alerts-enabled{border-color:var(--green);background:color-mix(in srgb,var(--green) 12%,var(--panel));color:var(--green)}

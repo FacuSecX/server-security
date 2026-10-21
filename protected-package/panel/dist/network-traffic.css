@@ -1,0 +1,7 @@
+.outgoing-filters{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;padding:0 16px 10px}
+.outgoing-filters input,.outgoing-filters select{width:100%;min-width:0;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:inherit;font-size:.78rem}
+.outgoing-message{padding:0 16px 8px;color:var(--muted);font-size:.76rem;min-height:1em}
+.network-outgoing .status.observed{color:var(--muted)}
+.network-outgoing .status.observed::before{background:var(--cyan)}
+@media(max-width:900px){.outgoing-filters{grid-template-columns:repeat(2,minmax(120px,1fr))}}
+@media(max-width:480px){.outgoing-filters{grid-template-columns:1fr}}

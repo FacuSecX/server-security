@@ -1,0 +1,11 @@
+.terminal-panel{padding:22px;display:grid;gap:18px}
+.terminal-heading{display:flex;justify-content:space-between;align-items:start;gap:16px;flex-wrap:wrap}
+.terminal-heading h2{margin:0 0 6px}.terminal-heading p{margin:0;color:var(--muted);line-height:1.5}
+.terminal-controls{display:flex;gap:8px;flex-wrap:wrap}.terminal-status{padding:12px 14px;border:1px solid var(--line);border-radius:9px;color:var(--muted)}
+.terminal-output{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:18px;min-height:260px;max-height:52vh;overflow:auto;font-family:Consolas,monospace;font-size:13px;line-height:1.5}
+.terminal-line{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 8px}.terminal-prompt{color:var(--cyan)}.terminal-stderr{color:var(--red)}.terminal-meta{color:var(--muted);font-size:12px}
+.terminal-form{display:grid;gap:10px}.terminal-form textarea{width:100%;min-height:85px;resize:vertical;padding:12px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;font:13px Consolas,monospace;box-sizing:border-box}
+.terminal-form label{font-weight:600}.terminal-form-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.terminal-form-actions small,.terminal-note{color:var(--muted);font-size:12px;line-height:1.6}
+
+.terminal-status[data-tone="error"]{color:var(--red);border-color:color-mix(in srgb,var(--red) 38%,var(--panel));border-left:3px solid var(--red);background:color-mix(in srgb,var(--red) 8%,var(--panel));font-weight:600}

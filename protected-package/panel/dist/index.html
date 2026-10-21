@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="Server Monitor · Server Security — monitoreo y gestión de seguridad del servidor">
+  <title>Server Monitor | Server Security</title>
+  <link rel="icon" type="image/svg+xml" href="/server-eye.svg">
+  <link rel="stylesheet" href="/catalog-services.css">
+  <link rel="stylesheet" href="/games.css">
+  <script src="/auth.js"></script>
+  <link rel="stylesheet" href="/auth.css">
+  <link rel="stylesheet" href="/terminal.css">
+  <script src="/command-guard.js"></script>
+  <script src="/personalization.js"></script>
+  <script src="/alert-sounds.js"></script>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/enhancements.css">
+  <link rel="stylesheet" href="/network-traffic.css">
+  <link rel="stylesheet" href="/personalization.css">
+  <link rel="stylesheet" href="/server-info.css">
+  <link rel="stylesheet" href="/notifications.css">
+  <link rel="stylesheet" href="/avatars.css">
+  <style>
+    .service-state.completed{color:var(--cyan)}
+    .service-state.inactive,.service-state.failed,.service-state.missing{color:var(--red)}
+    .service-state.unknown{color:var(--yellow)}
+  </style>
+</head>
+<body>
+  <div id="remoteCommandStatus" class="remote-command-status" role="status" aria-live="polite" hidden></div>
+  <aside class="server-banner" id="serverBanner" aria-label="Servidor monitoreado">
+    <div class="server-identity"><strong id="serverBannerHost">Servidor monitoreado</strong><span class="server-public-ip" id="serverBannerIp">Buscando IP pública…</span><span class="server-banner-state" id="serverBannerState">Conectando al servidor…</span></div>
+    <div class="server-hardware"><div><span>CPU</span><strong id="serverBannerCpu">—</strong></div><div><span>RAM</span><strong id="serverBannerMemory">—</strong></div><div><span>Disco</span><strong id="serverBannerDisk">—</strong></div><small id="serverBannerUpdated">Lectura directa del servidor</small></div>
+  </aside>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegación principal">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><img src="/server-eye.svg" width="40" height="40" alt=""></span>
+        <div><strong>Server Monitor</strong><small>Server Security</small></div>
+      </div>
+      <nav id="mainNav">
+        <button class="nav-item active" data-view="overview"><span>⌂</span>Resumen</button>
+        <details class="nav-group" id="networkNavGroup"><summary><span>⌁</span>Tráfico de red<b aria-hidden="true">⌄</b></summary><div class="nav-submenu">
+          <button class="nav-item" data-view="activity">Tráfico entrante</button>
+          <button class="nav-item" data-view="outgoing">Tráfico saliente</button>
+        </div></details>
+        <button class="nav-item" data-view="providers"><span>▰</span>Proveedores</button>
+        <details class="nav-group" id="sshNavGroup"><summary><span>›_</span>SSH<b aria-hidden="true">⌄</b></summary><div class="nav-submenu">
+          <button class="nav-item" data-view="ssh">Accesos SSH</button>
+          <button class="nav-item" data-view="reports">Generar Reporte</button>
+        </div></details>
+        <details class="nav-group" id="portsNavGroup"><summary><span>⌘</span>Puertos<b aria-hidden="true">⌄</b></summary><div class="nav-submenu">
+          <button class="nav-item" data-view="ports">Gestión de puertos</button>
+          <button class="nav-item" data-view="forwarding">Port Forwarding</button>
+          <button class="nav-item" data-view="port-traffic">Tráfico en puertos</button>
+        </div></details>
+        <details class="nav-group" id="servicesNavGroup"><summary><span>▣</span>Servicios<b aria-hidden="true">⌄</b></summary><div class="nav-submenu">
+          <button class="nav-item" data-view="services-install">Instalar servicios</button>
+          <button class="nav-item" data-view="services-manage">Gestionar servicios</button>
+          <button class="nav-item" data-view="services-remove">Eliminar servicios</button>
+        </div></details>
+        <details class="nav-group" id="gamesNavGroup"><summary><span aria-hidden="true">🎮</span>Juegos<b aria-hidden="true">⌄</b></summary><div class="nav-submenu">
+          <button class="nav-item" data-view="games-install">Instalar juegos</button>
+          <button class="nav-item" data-view="games-manage">Gestionar juegos</button>
+          <button class="nav-item" data-view="games-remove">Eliminar juegos</button>
+        </div></details>
+        <button class="nav-item" data-view="databases"><span>▦</span>Bases de datos</button>
+        <button class="nav-item" data-view="investigate"><span>⌕</span>Investigar IP</button>
+        <details class="nav-group" id="blocksNavGroup"><summary><span>⊘</span>Bloqueos<b aria-hidden="true">⌄</b></summary><div class="nav-submenu">
+          <button class="nav-item" data-view="blocks">Bloqueos de IP</button>
+          <button class="nav-item" data-view="authorized-ips">IP autorizadas</button>
+        </div></details>
+        <details class="nav-group" id="systemNavGroup"><summary><span>⚙</span>Sistema<b aria-hidden="true">⌄</b></summary><div class="nav-submenu"><button class="nav-item" data-view="system">Estado del sistema</button><button class="nav-item" data-view="alerts">Alertas</button></div></details>
+        <button class="nav-item" data-view="appearance"><span>◐</span>Personalizar panel</button>
+        <button class="nav-item" data-view="cleanup"><span>⌫</span>Borrado de datos</button>
+        <button class="nav-item" data-view="terminal" data-panel-admin hidden><span>⌘</span>Terminal</button>
+        <button class="nav-item" data-view="panel-users" data-panel-admin hidden><span>♙</span>Usuarios panel</button>
+      </nav>
+      <div class="sidebar-status">
+        <div class="shield">✓</div>
+        <div><strong>Servidor protegido</strong><small id="sidebarMode">Conectando al servidor…</small></div>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <button class="mobile-menu" id="mobileMenu" aria-label="Mostrar menú">☰</button>
+          <h1 id="pageTitle">Resumen de seguridad</h1>
+          <p id="pageSubtitle">Actividad consolidada del servidor</p>
+        </div>
+        <div class="top-actions">
+          <div class="period-switch" role="group" aria-label="Período del informe">
+            <button data-hours="24" class="active">24 h</button>
+            <button data-hours="168">7 días</button>
+            <button data-hours="720">30 días</button>
+          </div>
+          <button class="notification-bell" id="notificationBell" type="button" aria-label="Notificaciones de seguridad" aria-haspopup="dialog" title="Notificaciones de seguridad">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg><span class="notification-count" id="notificationCount" hidden>0</span>
+          </button>
+          <div class="auth-session-actions">
+            <span class="auth-session-user" title="Usuario"><button id="panelAvatarButton" type="button" disabled title="Cambiar avatar" aria-label="Cambiar avatar" aria-haspopup="dialog"><svg data-default width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></button><span id="panelCurrentUser"></span></span>
+            <button type="button" class="auth-icon-button" id="panelOwnPassword" title="Modificar contraseña" aria-label="Modificar contraseña"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="m11.5 11.5 9 9M16 16l3-3M18.5 18.5l3-3"/></svg></button>
+            <button type="button" class="auth-icon-button auth-lock-button" id="panelLogout" title="Bloquear sesión" aria-label="Bloquear sesión"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1"/><path d="M12 16v2"/></svg></button>
+          </div>
+          <button class="connection-pill offline" id="connectionPill"><i></i><span>Estado de conexión: Desconectado</span></button>
+        </div>
+      </header>
+
+      <div class="notice hidden" id="connectionNotice" role="status"></div>
+
+      <section class="view" id="view-terminal" data-panel-admin hidden>
+        <article class="panel terminal-panel">
+          <div><h2>Terminal del servidor</h2><p class="terminal-note">Sólo el administrador principal puede acceder. Windows Hello verifica tu identidad antes de habilitar los comandos.</p></div>
+          <p id="terminalStatus" class="terminal-status" data-tone="error" role="status">Acceso bloqueado.</p>
+          <div class="terminal-controls">
+            <button type="button" class="primary-button" id="terminalUnlock" disabled>Desbloquear con Windows Hello</button>
+            <button type="button" class="secondary-button" id="terminalLock" hidden>Bloquear terminal</button>
+            <button type="button" class="text-button" id="terminalClear">Limpiar salida</button>
+          </div>
+          <div id="terminalOutput" class="terminal-output" role="log" aria-label="Respuesta del servidor" tabindex="0"></div>
+          <form id="terminalForm" class="terminal-form" hidden autocomplete="off">
+            <label for="terminalCommand">Comando</label>
+            <textarea id="terminalCommand" rows="3" maxlength="8192" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Ejemplo: uname -a"></textarea>
+            <div class="terminal-controls"><button type="submit" class="primary-button" id="terminalSend" disabled>Ejecutar comando</button><span class="terminal-note">Enter para ejecutar · Mayús + Enter para nueva línea</span></div>
+          </form>
+          <p class="terminal-note">Se ejecuta con los permisos del usuario SSH configurado. Cada comando tiene un máximo de 60 segundos y 128 KB de salida. Esperá la respuesta y cinco segundos antes de enviar el siguiente.</p>
+          <p class="terminal-note">La terminal se bloquea al salir de esta sección o dejar la pestaña en segundo plano. La autorización vence a los cinco minutos. Los comandos no son interactivos: cada orden inicia un shell nuevo y no conserva el directorio anterior. No se guardan comandos ni resultados en el disco del panel.</p>
+        </article>
+      </section>
+      <section class="view" id="view-panel-users" data-panel-admin hidden>
+        <article class="panel panel-users-layout"><div><h2>Usuarios panel</h2><p>Acceso a esta aplicación local. Sólo el administrador principal puede gestionar usuarios.</p></div>
+        <p id="panelUsersHelloStatus" class="auth-error" role="status">Gestión de usuarios bloqueada. Verificá tu identidad con Windows Hello.</p>
+        <div class="panel-user-actions"><button type="button" class="primary-button" id="panelUsersUnlock">Desbloquear con Windows Hello</button><button type="button" class="secondary-button" id="panelUsersLock" hidden>Bloquear gestión</button></div>
+        <div class="table-scroll"><table><thead><tr><th>Usuario</th><th>Tipo de acceso</th><th>Estado</th><th>Permisos</th><th>Acción</th></tr></thead><tbody id="panelUsersRows"></tbody></table></div>
+        <form id="panelUsersForm" class="panel-user-form"><fieldset id="panelUsersControls" disabled>
+          <label>Acción<select name="action"><option value="create">Crear usuario</option><option value="permissions">Modificar permisos</option><option value="reset">Cambiar contraseña de un usuario</option><option value="delete">Eliminar usuario</option></select></label>
+          <label id="panelNewUsername">Usuario nuevo<input name="username" required minlength="3" maxlength="32" autocomplete="off" pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]{2,31}"></label>
+          <label id="panelExistingUser" hidden>Usuario existente<select name="target"></select></label>
+          <label id="panelTemporaryPassword">Contraseña temporal<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>
+          <fieldset id="panelMenuPermissions"><legend>Menús permitidos</legend><div class="panel-user-actions"><button type="button" class="text-button" id="panelPermissionsAll">Seleccionar todos</button><button type="button" class="text-button" id="panelPermissionsNone">Quitar todos</button></div><div id="panelPermissionOptions" class="panel-permission-options"></div><p class="auth-note">Terminal y Usuarios panel están reservados al administrador principal.</p></fieldset>
+          <button type="submit" class="primary-button" id="panelUsersSave">Guardar cambio</button>
+        </fieldset></form>
+        <p id="panelUsersMessage" class="auth-error" role="status"></p><p>Seleccioná un usuario y marcá los menús habilitados. Cambiar permisos, restablecer su contraseña o eliminarlo cierra sus sesiones anteriores. El administrador principal conserva siempre todos los accesos.</p></article>
+      </section>
+      <section class="view" id="view-forbidden"><article class="panel panel-users-layout"><h2 class="auth-error" role="alert">No autorizado</h2><p class="auth-error">Tu cuenta no tiene permiso para acceder a esta sección o función. El intento queda registrado para el administrador.</p><button type="button" class="primary-button" id="restrictedReturn">Volver a una sección permitida</button></article></section>
+      <section class="view" id="view-no-access"><article class="panel panel-users-layout"><h2>Tu cuenta todavía no tiene menús habilitados</h2><p>Solicitá al administrador que te asigne permisos. Podés bloquear tu sesión o cambiar tu propia contraseña desde la barra superior.</p></article></section>
+      <section class="view active" id="view-overview">
+        <div class="kpi-grid">
+          <article class="kpi"><div class="kpi-icon blue">↓</div><div><span>Paquetes DROP acumulados</span><strong id="kpiDrops">—</strong><small>Contador exacto de las reglas</small></div></article>
+          <article class="kpi"><div class="kpi-icon cyan">◉</div><div><span>Eventos registrados</span><strong id="kpiEvents">—</strong><small id="eventsPeriod">Últimas 24 horas</small></div></article>
+          <article class="kpi"><div class="kpi-icon violet">◎</div><div><span>IP únicas observadas</span><strong id="kpiIps">—</strong><small>Firewall, SSH y web</small></div></article>
+          <article class="kpi"><div class="kpi-icon red">!</div><div><span>Alertas críticas</span><strong id="kpiCritical">—</strong><small>Accesos SSH no autorizados</small></div></article>
+        </div>
+
+        <div class="overview-grid">
+          <article class="panel countries-panel">
+            <div class="panel-heading"><div><h2>Países más activos</h2><p>Por eventos del firewall registrados</p></div><button class="text-button" id="countryDialogOpen" type="button">Ver todos los países →</button></div>
+            <div class="donut-layout"><div class="donut" id="countryDonut"><div><strong id="donutTotal">0</strong><span>eventos</span></div></div><div class="legend" id="countryLegend"></div></div>
+          </article>
+
+          <article class="panel provider-panel">
+            <div class="panel-heading"><div><h2>Top proveedores más activos</h2><p>Eventos registrados en el período</p></div><button class="text-button" data-view-link="providers">Ver todos →</button></div>
+            <div class="bar-list" id="providerBars"></div>
+          </article>
+
+          <article class="panel ssh-users-panel">
+            <div class="panel-heading"><div><h2>Usuarios SSH más intentados</h2><p>Intentos fallidos registrados</p></div><button class="text-button" data-view-link="ssh">Detalle →</button></div>
+            <div class="bar-list warm" id="sshUserBars"></div>
+          </article>
+
+          <article class="panel timeline-panel">
+            <div class="panel-heading"><div><h2>Actividad de red</h2><p id="timelineCaption">Últimas 24 horas</p></div><div class="chart-key network-key"><span><i class="network-swatch" data-series="blocked"></i>Bloqueos</span><span><i class="network-swatch" data-series="accepted"></i>Aceptadas</span><span><i class="network-swatch" data-series="ssh"></i>SSH</span></div></div>
+            <div class="timeline-plot"><canvas id="timelineChart" tabindex="0" role="img" aria-label="Actividad de red: bloqueos, conexiones aceptadas y SSH"></canvas>
+              <div id="timelineTooltip" class="timeline-tooltip" hidden aria-hidden="true"><strong id="timelineTooltipDate"></strong>
+                <div><i class="network-swatch" data-series="blocked"></i><span>Bloqueos</span><b id="timelineValue-blocked"></b></div>
+                <div><i class="network-swatch" data-series="accepted"></i><span>Aceptadas</span><b id="timelineValue-accepted"></b></div>
+                <div><i class="network-swatch" data-series="ssh"></i><span>SSH</span><b id="timelineValue-ssh"></b></div>
+              </div></div>
+          </article>
+
+          <article class="panel risk-panel">
+            <div class="panel-heading"><div><h2>Nivel de riesgo</h2><p>Evaluación del período</p></div></div>
+            <div class="risk-score"><div class="risk-ring" id="riskRing"><strong id="riskLabel">Bajo</strong><span id="riskScore">0/100</span></div></div>
+            <div class="risk-counts"><span><i class="critical"></i>Crítico <b id="riskCritical">0</b></span><span><i class="medium"></i>SSH fallido <b id="riskSsh">0</b></span><span><i class="info"></i>Bloqueado <b id="riskBlocked">0</b></span></div>
+          </article>
+
+          <article class="panel live-panel">
+            <div class="panel-heading"><div><h2>Tráfico entrante</h2><p id="liveUpdated">Esperando datos del servidor</p></div><div class="live-controls"><span class="live-dot">EN VIVO</span><button class="text-button" data-view-link="activity">Ver todo →</button></div></div>
+            <div class="table-scroll"><table><thead><tr><th>Hora</th><th>IP origen</th><th>País</th><th>Proveedor</th><th>Protocolo</th><th>Puerto</th><th>Decisión</th><th>Detalle</th></tr></thead><tbody id="liveRows"></tbody></table></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-activity">
+        <article class="panel full-height">
+          <div class="panel-heading"><div><h2>Tráfico entrante</h2><p id="activityCoverage">Comprobando el nivel de registro UFW…</p></div><div class="filters"><select id="activityDecision" aria-label="Filtrar por resultado"><option value="">Todos los resultados</option><option value="accepted">Aceptados por firewall</option><option value="blocked">Bloqueados por firewall</option><option value="other">SSH y accesos web</option></select><select id="activityProtocol"><option value="">Todos los protocolos</option><option>TCP</option><option>UDP</option><option>ICMP</option><option>ICMPV6</option></select><input id="activityFilter" placeholder="Filtrar IP, proveedor o puerto"></div></div>
+          <div class="table-scroll tall"><table><thead><tr><th>Fecha y hora</th><th>IP origen</th><th>País</th><th>Proveedor / ISP</th><th>Protocolo</th><th>Puerto</th><th>Servicio</th><th>Resultado</th></tr></thead><tbody id="activityRows"></tbody></table></div>
+        </article>
+      </section>
+
+      <section class="view" id="view-outgoing">
+        <article class="panel full-height network-outgoing">
+          <div class="panel-heading"><div><h2>Tráfico saliente</h2><p id="outgoingCoverage">Esperando registros de conexiones salientes…</p></div></div>
+          <form id="outgoingFilters" class="outgoing-filters" autocomplete="off">
+            <select id="outgoingDecision" aria-label="Filtrar por resultado"><option value="">Todos los resultados</option><option value="observed">Detectadas</option><option value="accepted">Permitidas por firewall</option><option value="blocked">Bloqueadas por firewall</option></select>
+            <select id="outgoingProtocol" aria-label="Filtrar por protocolo"><option value="">Todos los protocolos</option><option>TCP</option><option>UDP</option><option>ICMP</option><option>ICMPV6</option></select>
+            <input id="outgoingCountry" placeholder="Filtrar país" aria-label="Filtrar país" maxlength="180">
+            <input id="outgoingIsp" placeholder="Filtrar ISP" aria-label="Filtrar ISP" maxlength="180">
+            <input id="outgoingSourcePort" type="number" min="0" max="65535" placeholder="Puerto origen" aria-label="Puerto origen">
+            <input id="outgoingPort" type="number" min="0" max="65535" placeholder="Puerto destino" aria-label="Puerto destino">
+            <input id="outgoingQuery" placeholder="Filtrar IP, ISP o puerto" aria-label="Filtrar IP, ISP o puerto" maxlength="180">
+          </form>
+          <p id="outgoingMessage" class="outgoing-message" role="status"></p>
+          <div class="table-scroll tall"><table><thead><tr><th>Fecha y hora</th><th>Puerto origen</th><th>IP destino</th><th>Puerto destino</th><th>Protocolo</th><th>País destino</th><th>Proveedor / ISP destino</th><th>Resultado</th></tr></thead><tbody id="outgoingRows"><tr><td colspan="8" class="empty-state">Esperando datos.</td></tr></tbody></table></div>
+        </article>
+      </section>
+
+      <section class="view" id="view-providers">
+        <div class="section-stats"><article><span>Proveedores configurados</span><strong id="providerCount">0</strong></article><article><span>Paquetes bloqueados</span><strong id="providerPackets">0</strong></article><article><span>Con actividad</span><strong id="providerActive">0</strong></article></div>
+        <article class="panel"><div class="panel-heading"><div><h2>Reglas por proveedor</h2><p>Contadores IPv4 + IPv6 desde iptables/ipset</p></div><input id="providerFilter" placeholder="Buscar proveedor"></div><div class="provider-cards" id="providerCards"></div></article>
+      </section>
+
+      <section class="view" id="view-ssh">
+        <div class="section-stats"><article><span>Fallos registrados</span><strong id="sshFailures">0</strong></article><article><span>Sesiones exitosas</span><strong id="sshSuccess">0</strong></article><article><span>Usuarios distintos</span><strong id="sshUsersCount">0</strong></article></div>
+        <div class="two-column">
+          <article class="panel">
+            <div class="panel-heading"><div><h2>Usuarios más probados</h2><p>Los 20 destinos de autenticación más utilizados</p></div></div>
+            <div class="bar-list warm expanded" id="sshFullBars"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading ssh-register-heading">
+              <div><h2>Registro SSH</h2><p>Fallos, accesos exitosos y conexiones bloqueadas</p></div>
+              <button class="ssh-live-launch" id="sshLiveOpen" type="button"><span aria-hidden="true"></span>Ver en vivo</button>
+            </div>
+            <div class="table-scroll tall"><table><thead><tr><th>Hora</th><th>IP</th><th>País</th><th>Usuario</th><th>Resultado</th></tr></thead><tbody id="sshRows"></tbody></table></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-reports">
+        <div class="section-stats report-stats">
+          <article><span>Estado</span><strong class="compact-value" id="reportStateSummary">Listo</strong></article>
+          <article><span>Último período</span><strong class="compact-value" id="reportPeriodSummary">—</strong></article>
+          <article><span>Archivos creados</span><strong id="reportFilesSummary">0</strong></article>
+        </div>
+        <div class="report-layout">
+          <article class="panel report-create-panel">
+            <div class="panel-heading"><div><h2>Generar reporte SSH</h2><p>Informe original con ranking por IP, proveedores y patrones: TXT y dos CSV</p></div><span class="panel-tag">Máximo 7 días</span></div>
+            <form class="report-form" id="sshReportForm">
+              <fieldset>
+                <legend>Elegí el período del análisis</legend>
+                <div class="report-presets" aria-label="Períodos rápidos">
+                  <button type="button" data-report-days="1" class="active">1 día</button>
+                  <button type="button" data-report-days="2">2 días</button>
+                  <button type="button" data-report-days="3">3 días</button>
+                  <button type="button" data-report-days="7">7 días</button>
+                </div>
+              </fieldset>
+              <label class="report-days-field"><span>Cantidad de días</span><input id="sshReportDays" type="number" min="1" max="7" step="1" value="1" required inputmode="numeric"><small>Se enviará al generador como <code id="reportSincePreview">--since "1440 minutes ago"</code>.</small></label>
+              <div class="report-flow-summary">
+                <div><i>1</i><span><strong>Generar</strong><small>Ejecuta el análisis seguro en el servidor</small></span></div>
+                <div><i>2</i><span><strong>Descargar</strong><small>Guarda el TXT original en Informes / SSH / archivos</small></span></div>
+                <div><i>3</i><span><strong>Abrir</strong><small>Muestra el reporte automáticamente en Windows</small></span></div>
+              </div>
+              <div class="report-actions"><button class="primary-button report-generate-button" id="sshReportGenerate" type="submit">Generar y descargar reporte</button><button class="secondary-button" id="sshReportRetry" type="button">Descargar último TXT existente</button></div>
+              <p class="safety-copy report-copy">El panel sólo puede ejecutar el generador fijo <code>ssh_security.ssh</code>, instalado como copia protegida del original. No admite comandos ni rutas escritos desde la web.</p>
+            </form>
+          </article>
+
+          <article class="panel report-progress-panel">
+            <div class="panel-heading"><div><h2>Progreso</h2><p>El panel puede seguir usándose mientras se genera el reporte</p></div><span class="report-status-badge idle" id="reportStatusBadge">Listo</span></div>
+            <div class="report-progress-body">
+              <div class="report-status-icon idle" id="reportStatusIcon" aria-hidden="true">✓</div>
+              <div class="report-status-copy"><strong id="reportStatusTitle">Listo para generar</strong><p id="reportStatusMessage">Elegí un período y comenzá el análisis.</p></div>
+              <div class="report-progress-track" aria-hidden="true"><i id="reportProgressBar"></i></div>
+              <dl class="report-locations">
+                <div><dt>Origen en el servidor</dt><dd id="reportRemoteDir">/var/lib/storypulse-security/Informes/SSH/archivos</dd></div>
+                <div><dt>Destino en Windows</dt><dd id="reportLocalDir">Comprobando…</dd></div>
+                <div><dt>Inicio</dt><dd id="reportStartedAt">—</dd></div>
+                <div><dt>Finalización</dt><dd id="reportFinishedAt">—</dd></div>
+              </dl>
+              <div class="report-files">
+                <h3>Archivos generados</h3>
+                <ul id="reportFileList"><li>Todavía no hay archivos generados desde el panel.</li></ul>
+              </div>
+              <div class="block-controller-notice error hidden" id="reportError"></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-ports">
+        <article class="panel managed-ports-panel">
+          <div class="panel-heading"><div><h2>Puertos del servidor</h2><p>Permisos del firewall y servicios que están escuchando ahora</p></div><button type="button" class="refresh-button" id="portsRefresh">Actualizar</button></div>
+          <div class="ports-live-state" id="portsLiveState" role="status">Consultando el servidor…</div>
+          <div class="ports-controls">
+            <form id="portsInspectForm"><label for="portsInspect">Consultar otro puerto</label><div><input type="number" id="portsInspect" min="1" max="65535" required placeholder="Ej.: 8080"><button class="primary-button" type="submit">Consultar</button></div></form>
+            <label>Filtrar listado<input id="portsSearch" type="search" placeholder="Puerto, servicio o proceso"></label>
+            <label>Mostrar<select id="portsFilter"><option value="all">Todos</option><option value="open">Abiertos</option><option value="closed">Cerrados</option><option value="restricted">Restringidos / mixtos</option><option value="listening">Con servicio escuchando</option></select></label>
+          </div>
+          <p class="ports-explanation">🟢 Abierto · 🔴 Cerrado · 🟡 Restringido o distinto entre IPv4/IPv6. Un puerto abierto necesita un servicio escuchando para recibir conexiones. Se listan puertos habituales, reglas y servicios detectados; podés consultar cualquier otro número.</p>
+          <div class="table-scroll"><table class="managed-ports-table"><thead><tr><th>Puerto</th><th>Firewall entrante</th><th>Servicio / proceso</th><th>Escuchando</th><th>Acciones</th></tr></thead><tbody id="managedPortsRows"><tr><td colspan="5" class="empty-state">Esperando la consulta…</td></tr></tbody></table></div>
+          <p id="portsNotice" class="ports-explanation"></p>
+        </article>
+      </section>
+
+      <section class="view" id="view-services-install"><div class="catalog-toolbar"><div><h2>Catálogo de servicios</h2><p>Paquetes firmados para la distribución detectada. Elegí un servicio para revisar sus versiones.</p></div><button type="button" class="refresh-button" id="catalogRefresh">Actualizar estado</button></div><p id="catalogStatus" role="status" class="ports-live-state">Consultando servicios…</p><details class="catalog-options"><summary>Opciones de instalación FTP</summary><label class="port-confirm-check"><input id="ftpOpenFirewall" type="checkbox" checked> Habilitar en UFW TCP 21 y 50000–50019 para conexiones IPv4</label></details><div class="catalog-grid" id="catalogInstallCards"><article class="panel services-panel catalog-card catalog-legacy mysql-install-card">
+<div class="panel-heading"><div><img class="catalog-logo" src="/service-logo-mysql.svg" alt="MySQL"><h2>MySQL / MariaDB</h2><p>Bases de datos, usuarios y acceso cifrado</p></div><button class="refresh-button mysql-refresh" type="button" title="Actualizar estado del servicio" aria-label="Actualizar estado del servicio">↻</button></div>
+<div class="ports-live-state mysql-status" role="status">Consultando MySQL…</div>
+<div class="service-catalog"><div><span class="panel-tag">Repositorio oficial · Acceso privado inicial</span><p>Instala MySQL o MariaDB y su conector, según la distribución del servidor. Las bases se administran desde este panel por la conexión SSH existente.</p><p>La instalación no abre el puerto 3306 a Internet. El acceso externo se habilita después, por usuario e IP concreta, con TLS obligatorio.</p><button class="primary-button" id="mysqlInstall" type="button" disabled>Revisar instalación MySQL</button><button class="secondary-button" id="mysqlUpgrade" type="button" hidden>Actualizar a la versión más reciente</button></div><aside class="service-help"><h3>Preparado para este servidor</h3><p>Memoria y conexiones limitadas para compartir recursos con los demás servicios. No se reemplazan instalaciones existentes ajenas al panel.</p><p>La instalación usa paquetes firmados de la distribución o del repositorio oficial de Oracle y puede demorar varios minutos.</p></aside></div></article>
+        <article class="panel services-panel catalog-card catalog-legacy"><div class="panel-heading"><div><img class="catalog-logo" src="/service-logo-ftp.svg" alt=""><h2>FTP seguro</h2><p>Instalaciones revisadas y administradas por el panel</p></div><button class="refresh-button services-refresh" type="button" title="Actualizar estado del servicio" aria-label="Actualizar estado del servicio">↻</button></div>
+          <div class="ports-live-state services-status" role="status">Consultando el servidor…</div>
+          <div class="service-catalog"><div><h3>FTP seguro</h3><span class="panel-tag">FTPS explícito · TLS obligatorio</span><p>Transferencia de archivos con usuarios propios, raíces aisladas y permisos por cuenta. Sin acceso SSH ni cuentas anónimas.</p><p>Se instala vsftpd, una base de contraseñas protegidas y un certificado propio. El certificado se verifica con su huella desde el cliente FTP.</p><button class="primary-button" id="ftpInstall" type="button" disabled>Revisar instalación FTP</button><button class="secondary-button" id="ftpUpgrade" type="button" hidden>Actualizar a la versión más reciente</button></div><aside class="service-help"><h3>Antes de confirmar</h3><p>La vista previa muestra los puertos que se permitirán. Los bloqueos de IP y proveedores existentes se conservan.</p><p>La instalación puede demorar varios minutos. El panel mostrará el resultado sin congelarse. Conservá el panel conectado hasta que termine.</p><p>Los servicios se instalan únicamente después de revisar y confirmar cada operación.</p></aside></div>
+        </article>
+      </div></section>
+      <section class="view" id="view-services-manage"><div class="catalog-toolbar"><div><h2>Servicios instalados</h2><p id="catalogManageStatus" role="status">Consultando servicios…</p></div><button id="catalogManageRefresh" class="refresh-button" type="button">Actualizar estado</button></div><div id="catalogManageCards" class="catalog-grid"></div><div class="service-selector"><button type="button" class="secondary-button" data-service-kind="ftp">FTP</button><button type="button" class="secondary-button" data-service-kind="mysql">MySQL</button></div>
+        <article class="panel services-panel" data-service-panel="ftp"><div class="panel-heading"><div><h2>Gestionar servicios · FTP</h2><p>Cuentas virtuales y permisos de archivos</p></div><button class="refresh-button services-refresh" type="button">Actualizar</button></div>
+          <div class="ports-live-state services-status" role="status">Consultando el servidor…</div>
+          <div class="ftp-service-actions"><button class="secondary-button" data-ftp-service="start" type="button">Iniciar FTP</button><button class="secondary-button" data-ftp-service="stop" type="button">Detener FTP</button><button class="secondary-button" data-ftp-service="restart" type="button">Reiniciar FTP</button></div>
+          <p class="ports-explanation" id="ftpConnectionInfo"></p><p class="ftp-fingerprint" id="ftpFingerprint"></p>
+          <div class="service-catalog">
+            <form id="ftpUserForm" class="forwarding-form"><h3 id="ftpUserTitle">Crear usuario FTP</h3>
+              <label>Usuario<input id="ftpUsername" required minlength="3" maxlength="32" pattern="[a-z][a-z0-9_-]{2,31}" autocomplete="off" placeholder="Ej.: archivos_cliente"></label>
+              <label>Contraseña<input id="ftpPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" placeholder="Mínimo 12 caracteres"></label>
+              <label>Nombre de carpeta raíz<input id="ftpRoot" required maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,63}" placeholder="Ej.: cliente_uno" autocomplete="off"></label>
+              <p class="ports-explanation">Raíz: <strong id="ftpRootPreview">/srv/storypulse-ftp/…</strong>. Los archivos se trabajan dentro de <strong>/archivos</strong>. El usuario no puede salir de su raíz.</p>
+              <div class="ftp-presets"><button type="button" class="secondary-button" data-ftp-preset="read">Sólo lectura</button><button type="button" class="secondary-button" data-ftp-preset="upload">Sólo subir</button><button type="button" class="secondary-button" data-ftp-preset="all">Todos los permisos</button></div>
+              <fieldset class="ftp-permissions"><legend>Permisos</legend><label><input type="checkbox" data-ftp-permission="list" checked> Listar archivos</label><label><input type="checkbox" data-ftp-permission="download" checked> Leer / descargar</label><label><input type="checkbox" data-ftp-permission="upload"> Subir / sobrescribir</label><label><input type="checkbox" data-ftp-permission="mkdir"> Crear carpetas</label><label><input type="checkbox" data-ftp-permission="rename"> Renombrar / mover</label><label><input type="checkbox" data-ftp-permission="delete"> Eliminar archivos / carpetas</label></fieldset>
+              <div class="forwarding-form-actions"><button class="primary-button" id="ftpUserReview" type="submit" disabled>Revisar usuario</button><button class="secondary-button" id="ftpUserClear" type="button" hidden>Cancelar edición</button></div>
+            </form>
+            <aside class="service-help"><h3>Aislamiento y permisos</h3><p>Las raíces se crean dentro de /srv/storypulse-ftp. No se permiten rutas externas, enlaces de raíz ni acceso a carpetas del sistema.</p><p>La contraseña se puede cambiar editando la cuenta. Si dejás el campo vacío durante una edición, se conserva la actual.</p><p>Los cambios de cuentas reinician sólo FTP y desconectan sus sesiones para aplicar los permisos nuevos. Los demás servicios continúan funcionando.</p><p>Eliminar una cuenta revoca su acceso y conserva sus archivos. Una raíz anterior no se asigna automáticamente a otro usuario.</p></aside>
+          </div>
+          <div class="table-scroll"><table class="managed-ports-table"><thead><tr><th>Usuario</th><th>Raíz</th><th>Permisos</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="ftpUsers"><tr><td colspan="5" class="empty-state">Consultando cuentas…</td></tr></tbody></table></div>
+        </article>
+      <article class="panel services-panel" data-service-panel="mysql" hidden>
+<div class="panel-heading"><div><h2>Gestionar servicios · MySQL</h2><p>Bases, cuentas, permisos y estructura</p></div><button class="refresh-button mysql-refresh" type="button">Actualizar</button></div>
+<div class="ports-live-state mysql-status" role="status">Consultando…</div>
+<div class="ftp-service-actions"><button class="secondary-button" data-mysql-service="start">Iniciar MySQL</button><button class="secondary-button" data-mysql-service="stop">Detener MySQL</button><button class="secondary-button" data-mysql-service="restart">Reiniciar MySQL</button></div>
+<div class="mysql-tabs"><button class="secondary-button active" data-mysql-tab="accounts">Bases y usuarios</button><button class="secondary-button" data-mysql-tab="structure">Estructura de tablas</button><button class="secondary-button" data-mysql-tab="network">Acceso externo</button></div>
+<div data-mysql-content="accounts">
+<form class="forwarding-form mysql-db-create" id="mysqlDatabaseForm"><h3>Crear base de datos</h3><div class="mysql-inline"><label>Nombre de la base<input id="mysqlDatabaseName" required pattern="[A-Za-z][A-Za-z0-9_]{0,47}" maxlength="48" placeholder="Ej.: mi_proyecto"></label><button class="primary-button" type="submit">Revisar creación</button></div></form>
+<div class="service-catalog"><form class="forwarding-form" id="mysqlUserForm"><h3 id="mysqlUserTitle">Crear usuario</h3>
+<label>Base asignada<select id="mysqlUserDatabase" required></select></label><label>Usuario<input id="mysqlUsername" required minlength="3" maxlength="24" pattern="[a-z][a-z0-9_]{2,23}" autocomplete="off"></label><label>Contraseña<input type="password" id="mysqlPassword" minlength="12" maxlength="128" autocomplete="new-password"></label>
+<label class="mysql-check"><input id="mysqlUserEnabled" type="checkbox" checked> Usuario habilitado</label>
+<label>IPv4 externas autorizadas (opcional)<textarea id="mysqlUserIps" rows="2" placeholder="Una IP pública por línea. Vacío: sólo desde el panel."></textarea></label>
+<div class="ftp-presets"><button type="button" class="secondary-button" data-mysql-preset="read">Sólo lectura</button><button type="button" class="secondary-button" data-mysql-preset="write">Lectura y escritura</button><button type="button" class="secondary-button" data-mysql-preset="all">Todos los permisos</button></div>
+<fieldset class="ftp-permissions" id="mysqlPermissions"><legend>Permisos únicamente sobre su base</legend></fieldset>
+<div class="forwarding-form-actions"><button class="primary-button" type="submit">Revisar usuario</button><button class="secondary-button" id="mysqlUserCancel" type="button" hidden>Cancelar edición</button></div></form>
+<aside class="service-help"><h3>Accesos separados</h3><p>Cada usuario se asigna a una base. Todos los permisos se limitan a esa base y no conceden administración del servidor ni acceso a archivos del sistema.</p><p>Los usuarios del panel se autentican localmente a través de SSH. Las IP externas crean accesos adicionales restringidos por MySQL y el firewall, con cifrado obligatorio.</p><p>Editar permite cambiar contraseña, permisos, estado e IP autorizadas. Dejar la contraseña vacía conserva la actual. Cambiar los permisos desconecta las sesiones de ese usuario.</p><p>Eliminar un usuario conserva la base y sus datos.</p></aside></div>
+<div class="table-scroll"><table class="managed-ports-table"><thead><tr><th>Usuario</th><th>Base</th><th>Permisos</th><th>IP externas</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="mysqlUsers"></tbody></table></div></div>
+<div data-mysql-content="structure" hidden><div class="mysql-structure-layout">
+<form class="forwarding-form" id="mysqlStructureForm"><h3>Editor de estructura</h3>
+<label>Base<select id="mysqlStructureDatabase" required></select></label>
+<label>Operación<select id="mysqlStructureAction"><option value="create-table">Crear tabla</option><option value="add-column">Añadir campo</option><option value="modify-column">Modificar campo</option><option value="drop-column">Eliminar campo</option><option value="drop-table">Eliminar tabla</option><option value="create-index">Crear índice</option><option value="create-relation">Crear relación</option><option value="rename-table">Renombrar tabla</option><option value="rename-column">Renombrar campo</option><option value="drop-index">Eliminar índice</option><option value="drop-relation">Eliminar relación</option></select></label>
+<label id="mysqlNewTableLabel">Nombre de tabla<input id="mysqlNewTable" maxlength="48" pattern="[A-Za-z][A-Za-z0-9_]{0,47}"></label>
+<label id="mysqlExistingTableLabel" hidden>Tabla existente<select id="mysqlExistingTable"></select></label>
+<label id="mysqlExistingColumnLabel" hidden>Campo<select id="mysqlExistingColumn"></select></label>
+<label id="mysqlRenameLabel" hidden>Nombre nuevo<input id="mysqlRename" maxlength="48" pattern="[A-Za-z][A-Za-z0-9_]{0,47}"></label><label id="mysqlDropObjectLabel" hidden>Índice o relación<select id="mysqlDropObject"></select></label><div id="mysqlFields"></div><button type="button" class="secondary-button" id="mysqlAddField">Añadir otro campo</button>
+<div id="mysqlIndexOptions" hidden><label>Nombre del índice<input id="mysqlIndexName" maxlength="48"></label><label>Campos (separados por coma)<input id="mysqlIndexColumns" placeholder="Ej.: apellido, nombre"></label><label class="mysql-check"><input type="checkbox" id="mysqlIndexUnique"> Valores únicos</label></div>
+<div id="mysqlRelationOptions" hidden><label>Nombre de la relación<input id="mysqlRelationName" maxlength="48"></label><label>Tabla referenciada<select id="mysqlRelationTable"></select></label><label>Campo referenciado<select id="mysqlRelationColumn"></select></label></div>
+<p class="ports-explanation">Eliminar campos o tablas elimina sus datos. Modificar un tipo puede convertir o rechazar valores existentes. Revisá los detalles antes de confirmar.</p><button class="primary-button" type="submit">Revisar estructura</button></form>
+<aside class="service-help"><h3>Tabla seleccionada</h3><div id="mysqlStructureInfo">Elegí una base y una tabla.</div><p>Las tablas nuevas pueden incluir un identificador automático. Las relaciones usan protección contra borrar registros referenciados.</p></aside></div></div>
+<div data-mysql-content="network" hidden><div class="service-catalog"><form class="forwarding-form" id="mysqlNetworkForm"><h3>Acceso externo opcional</h3><label class="mysql-check"><input id="mysqlRemote" type="checkbox"> Permitir conexiones externas cifradas</label><p class="ports-explanation" id="mysqlConnectionInfo"></p><button class="primary-button" type="submit">Revisar configuración de red</button></form><aside class="service-help"><h3>IP + usuario + contraseña + TLS</h3><p>Se permiten únicamente las IPv4 públicas concretas de los usuarios habilitados. Sin IP asignadas, no se añaden accesos externos.</p><p>El acceso privado desde el panel sigue disponible. Cambiar esta opción reinicia sólo MySQL.</p><button class="secondary-button" id="mysqlCertificate" type="button">Descargar certificado para el cliente</button><p class="ftp-fingerprint" id="mysqlFingerprint"></p><p>Verificá el certificado en el cliente externo. El certificado propio dura un año y necesita renovación posterior.</p></aside></div></div>
+</article></section>
+
+<section class="view" id="view-services-remove">
+<div class="catalog-toolbar"><p class="ports-live-state status-warning" role="note">Borrado permanente de los archivos y datos propios. Revisá la vista previa antes de confirmar. Se conservan instalaciones externas y dependencias compartidas.</p></div>
+<div class="catalog-grid" id="catalogRemoveCards">
+<article class="panel catalog-card catalog-legacy"><div class="catalog-card-heading"><img class="catalog-logo" src="/service-logo-mysql.svg" alt=""><h3>MySQL / MariaDB</h3></div><span class="panel-tag">Datos</span><p>Motor de bases de datos</p><div class="ports-live-state mysql-status" role="status">Consultando el servidor…</div><p class="catalog-note">Elimina las bases, usuarios y archivos de esta instalación.</p><div class="catalog-card-actions"><button class="danger-button" type="button" id="mysqlUninstall" disabled>Revisar eliminación</button></div></article>
+<article class="panel catalog-card catalog-legacy"><div class="catalog-card-heading"><img class="catalog-logo" src="/service-logo-ftp.svg" alt=""><h3>FTP seguro</h3></div><span class="panel-tag">Archivos</span><p>Transferencia de archivos con TLS</p><div class="ports-live-state services-status" role="status">Consultando el servidor…</div><p class="catalog-note">Elimina usuarios FTP y sus archivos propios.</p><div class="catalog-card-actions"><button class="danger-button" type="button" id="ftpUninstall" disabled>Revisar eliminación</button></div></article>
+</div></section>
+
+<section class="view" id="view-games-install">
+ <div class="catalog-toolbar"><div><h2>Instalar juegos</h2><p>Prepará tu servidor de juego desde el panel.</p></div><button id="gamesRefresh" class="refresh-button" type="button">Actualizar estado</button></div>
+ <p id="gamesInstallStatus" class="ports-live-state" role="status">Consultando el servidor…</p><div id="gamesInstallCards" class="games-cards"></div>
+</section>
+<section class="view" id="view-games-remove">
+ <div class="catalog-toolbar"><div><h2>Eliminar juegos</h2><p>Eliminá únicamente juegos instalados desde este panel.</p></div><button id="gamesRemoveRefresh" class="refresh-button" type="button">Actualizar estado</button></div>
+ <p id="gamesRemoveStatus" class="ports-live-state" role="status">Consultando el servidor…</p><div id="gamesRemoveCards" class="games-cards"></div>
+</section>
+<section class="view" id="view-games-manage"><article class="panel games-management">
+ <div class="catalog-toolbar"><div class="games-heading"><img src="/game-logo-samp.png" width="60" height="50" alt="SA-MP"><div><h2>San Andreas Multiplayer</h2><p id="gameInstalledVersion">Consultando instalación…</p></div></div><button id="gamesManageRefresh" class="refresh-button" type="button">Actualizar estado</button></div>
+ <div class="ports-live-state games-state-panel"><p id="gamesManageStatus" class="games-server-state" role="status"></p><p id="gamePlayersNotice" class="games-note" hidden></p></div>
+ <div id="gameManagement" hidden><div class="games-statistics"><div><span>Jugadores conectados</span><strong id="gamePlayers">—</strong></div></div><div class="games-controls"><button id="gamePower" type="button" class="games-icon-button games-power" data-game-action="start" title="Encender servidor" aria-label="Encender servidor" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.3 5.8a8 8 0 1 0 11.4 0"/></svg></button><button type="button" class="games-icon-button games-restart" data-game-action="restart" title="Reiniciar servidor" aria-label="Reiniciar servidor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5.3"/></svg></button><span id="gameResources"></span></div>
+ <section id="gameFtpCard" class="games-ftp" aria-labelledby="gameFtpHeading" hidden><h3 id="gameFtpHeading">Acceso FTP a los archivos</h3><p id="gameFtpNotice" class="games-note"></p><div id="gameFtpDetails" class="games-ftp-grid" hidden><label>Servidor<input id="gameFtpHost" readonly></label><label>Usuario FTP<input id="gameFtpUsername" readonly></label><label>Puerto<input id="gameFtpPort" readonly></label><label>Carpeta permitida<input id="gameFtpDirectory" readonly></label><label class="games-ftp-secret">Contraseña FTP<span><input id="gameFtpPassword" type="password" readonly autocomplete="off" aria-label="Contraseña FTP oculta"><button id="gameFtpReveal" type="button" class="secondary-button" title="Mostrar contraseña con Windows Hello" aria-label="Mostrar contraseña con Windows Hello" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></span></label><p id="gameFtpMessage" class="games-note" role="status"></p></div></section>
+ <div class="games-workspace"><form id="gameConfigForm" class="games-settings">
+  <h3>Configuración del servidor</h3><label>Nombre del servidor<input id="gameHostname" maxlength="80" required></label>
+  <div class="games-field-pair"><label>Puerto UDP<input id="gamePort" type="number" min="1024" max="65535" required></label><label>Jugadores máximos<input id="gameMaxplayers" type="number" min="1" max="1000" required></label></div>
+  <label>Gamemode instalado<select id="gameGamemode" required></select></label>
+  <fieldset class="games-assets"><legend>Filterscripts (FS)</legend><div id="gameFilterscripts" class="games-asset-list"></div><small>Seleccioná hasta 15 archivos .amx de filterscripts/. El panel reserva un espacio para sus estadísticas internas.</small></fieldset>
+  <fieldset class="games-assets"><legend>Plugins</legend><div id="gamePlugins" class="games-asset-list"></div><small>Archivos .so de Linux de 32 bits en plugins/.</small></fieldset>
+  <label class="games-check"><input id="gameQuery" type="checkbox" aria-describedby="gameQueryHelp">Permitir consultas del cliente</label><small id="gameQueryHelp" class="games-note">Al desactivarlo, el cliente no muestra información del servidor. Los jugadores pueden seguir conectándose por su dirección y el panel mantiene sus estadísticas administrativas.</small><label class="games-check"><input id="gameChatlogging" type="checkbox">Registrar el chat del juego</label>
+  <p class="games-note">Carpeta del juego: /opt/server-monitor/games/samp. La selección conserva el orden de carga configurado. Al guardar se reinicia el juego si está encendido.</p><button type="submit" id="gameConfigSave" class="primary-button">Revisar cambios</button>
+ </form><div class="games-log"><div class="catalog-toolbar"><h3>Consola en vivo</h3><button type="button" id="gameConsoleClear" class="secondary-button">Limpiar vista</button></div><pre id="gameConsole" tabindex="0" aria-label="Consola del juego"></pre><p id="gameConsoleStatus" class="games-note">Los registros se actualizan cada tres segundos. Se muestra el chat que registra el servidor o su gamemode.</p></div></div></div>
+</article></section>
+<section class="view" id="view-databases"><article class="panel services-panel">
+<div class="panel-heading"><div><h2>Bases de datos</h2><p>Autenticate con el usuario de la base para consultar y modificar sus datos</p></div><button class="secondary-button" id="dbLogout" hidden>Cerrar sesión</button></div>
+<p class="ports-live-state" id="dbStatus">Elegí una base y un usuario.</p>
+<form class="forwarding-form db-login" id="dbLogin"><label>Base<select id="dbDatabase" required></select></label><label>Usuario<select id="dbUsername" required></select></label><label>Contraseña<input id="dbPassword" type="password" minlength="12" maxlength="128" autocomplete="current-password" required></label><button class="primary-button" type="submit">Conectar a la base</button></form>
+<div id="dbWorkspace" hidden><div class="db-layout"><aside class="db-tables"><h3>Tablas</h3><div id="dbTables"></div></aside><div class="db-grid-area"><div class="mysql-inline"><h3 id="dbTableTitle">Elegí una tabla</h3><button class="secondary-button" id="dbReload">Actualizar datos</button><button class="primary-button" id="dbInsert" disabled>Agregar registro</button></div>
+<form class="mysql-inline db-grid-tools" id="dbSearchForm"><input id="dbSearch" maxlength="100" placeholder="Buscar contenido en esta tabla"><select id="dbSort"></select><label class="mysql-check"><input id="dbDescending" type="checkbox"> Descendente</label><button class="secondary-button" type="submit">Consultar</button></form>
+<p class="ports-explanation" id="dbGridNotice"></p><div class="table-scroll"><table class="managed-ports-table db-data-table"><thead id="dbGridHead"></thead><tbody id="dbGridRows"></tbody></table></div>
+<div class="mysql-inline db-pagination"><button class="secondary-button" id="dbPrevious" disabled>Anterior</button><span id="dbPageInfo"></span><button class="secondary-button" id="dbNext" disabled>Siguiente</button></div></div></div></div></article></section>
+      <section class="view" id="view-forwarding">
+        <article class="panel forwarding-panel">
+          <div class="panel-heading"><div><h2>Port Forwarding</h2><p>Dirigí un puerto del servidor a otro servidor sin procesar el tráfico en el panel</p></div><button type="button" class="refresh-button" id="forwardingRefresh">Actualizar</button></div>
+          <div class="ports-live-state" id="forwardingState" role="status">Consultando el servidor…</div>
+          <div class="forwarding-layout">
+            <form class="forwarding-form" id="forwardingForm">
+              <h3 id="forwardingFormTitle">Nueva redirección</h3>
+              <label>Puerto abierto de entrada<select id="forwardingSource" required><option value="">Cargando puertos…</option></select></label>
+              <p class="ports-explanation">Los puertos restringidos mantienen sus IP permitidas. SSH y las conexiones administrativas están protegidos. Para abrir otro puerto, usá Gestión de puertos.</p>
+              <label>IP pública o dominio de destino<input id="forwardingHost" required maxlength="253" placeholder="Ej.: servidor.ejemplo.com" autocomplete="off" spellcheck="false"></label>
+              <label>Puerto de destino<input id="forwardingTargetPort" type="number" min="1" max="65535" required placeholder="Ej.: 443"></label>
+              <div class="forwarding-form-actions"><button class="primary-button" id="forwardingReview" type="submit" disabled>Revisar redirección</button><button class="secondary-button" id="forwardingClear" type="button">Cancelar edición</button></div>
+            </form>
+            <div class="forwarding-help"><h3>Cómo funciona</h3><div class="forwarding-route"><span>Cliente</span><b>→</b><span>Servidor : puerto</span><b>→</b><span>Destino : puerto</span></div><p>Compatible con TCP y UDP sobre IPv4 pública. El tráfico pasa por Linux; el panel puede cerrarse y la redirección continúa.</p><p>HTTPS/TLS se transmite sin descifrar. El destino recibe las conexiones desde la IP del servidor. No se modifican certificados ni se elige un destino según el nombre de la web.</p><p>Un dominio se resuelve al guardar. Si cambia su IP, editá la regla y confirmá la nueva dirección.</p><p>Si el puerto lo utiliza un servicio, la vista previa lo indicará: las nuevas conexiones externas pasarán al destino elegido.</p></div>
+          </div>
+          <p class="ports-explanation" id="forwardingNotice"></p>
+          <div class="table-scroll"><table class="managed-ports-table"><thead><tr><th>Entrada</th><th>Destino</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="forwardingRows"><tr><td colspan="4" class="empty-state">Esperando la consulta…</td></tr></tbody></table></div>
+        </article>
+      </section>
+
+      <section class="view" id="view-port-traffic">
+        <article class="panel"><div class="panel-heading"><div><h2>Puertos y protocolos observados</h2><p>Eventos bloqueados agrupados por objetivo</p></div></div><div class="port-grid" id="portCards"></div></article>
+      </section>
+
+      <section class="view" id="view-investigate">
+        <article class="panel investigate-panel"><div class="panel-heading"><div><h2>Investigar una dirección IP</h2><p>Busca su historial almacenado sin realizar acciones sobre el servidor</p></div></div><form id="ipForm"><input id="ipInput" required placeholder="Dirección IPv4 o IPv6" autocomplete="off"><button type="submit">Buscar historial</button></form><div class="ip-result empty-state" id="ipResult">Ingresa una dirección para consultar sus eventos.</div></article>
+      </section>
+
+      <section class="view" id="view-blocks">
+        <div class="section-stats block-stats">
+          <article><span>IP bloqueadas manualmente</span><strong id="manualBlockCount">0</strong></article>
+          <article><span>Proveedores bloqueados</span><strong id="blockProviderCount">0</strong></article>
+          <article><span>Control remoto</span><strong class="compact-value" id="blockControllerState">Comprobando…</strong></article>
+        </div>
+
+        <div class="blocks-grid">
+          <article class="panel block-action-panel">
+            <div class="panel-heading"><div><h2>Bloquear una IP</h2><p>Descarta todo el tráfico entrante de una dirección pública</p></div><span class="panel-tag danger-tag">Todos los puertos</span></div>
+            <div class="block-controller-notice" id="blockControllerNotice">Comprobando el controlador del servidor…</div>
+            <form class="block-form" id="blockIpForm">
+              <label>Dirección IP<input id="blockIpInput" required placeholder="Dirección IPv4 o IPv6" autocomplete="off" inputmode="text"></label>
+              <label>Motivo<input id="blockReasonInput" maxlength="160" placeholder="Ejemplo: actividad hostil confirmada" autocomplete="off"></label>
+              <button class="danger-button" id="blockIpButton" type="submit" disabled>Revisar bloqueo</button>
+            </form>
+            <p class="safety-copy">La IP administrativa, el servidor, Tailscale y los rangos de Cloudflare están protegidos contra bloqueos accidentales.</p>
+          </article>
+
+          <article class="panel manual-list-panel">
+            <div class="panel-heading"><div><h2>Bloqueos manuales activos</h2><p>Reglas persistentes aplicadas en el servidor</p></div><button class="text-button" id="reloadBlocks" type="button">Actualizar</button></div>
+            <div class="table-scroll block-table"><table><thead><tr><th>IP</th><th>Familia</th><th>Fecha</th><th>Motivo</th><th></th></tr></thead><tbody id="manualBlockRows"><tr><td colspan="5" class="empty-state">Cargando…</td></tr></tbody></table></div>
+          </article>
+
+          <article class="panel provider-inventory-panel">
+            <div class="panel-heading"><div><h2>Proveedores bloqueados actuales</h2><p>Inventario real de reglas UFW de proveedores e ipset</p></div><input id="blockProviderFilter" placeholder="Buscar proveedor"></div>
+            <div class="table-scroll block-provider-table"><table><thead><tr><th>Proveedor</th><th>IPv4</th><th>IPv6</th><th>Rangos totales</th><th>Paquetes DROP</th></tr></thead><tbody id="blockProviderRows"></tbody></table></div>
+          </article>
+
+          <article class="panel reviewed-provider-panel">
+            <div class="panel-heading"><div><h2>Bloqueos de proveedores aprobados</h2><p>ASN confirmados y aplicados desde este panel</p></div></div>
+            <div class="table-scroll block-table"><table><thead><tr><th>Proveedor</th><th>ASN</th><th>IPv4</th><th>IPv6</th><th>Fecha</th><th></th></tr></thead><tbody id="reviewedProviderRows"><tr><td colspan="6" class="empty-state">No hay proveedores bloqueados desde el panel.</td></tr></tbody></table></div>
+          </article>
+
+          <article class="panel provider-evaluate-panel">
+            <div class="panel-heading"><div><h2>Evaluar un proveedor</h2><p>Analiza una IP o ASN antes de considerar un bloqueo masivo</p></div><span class="panel-tag">Aprobación protegida</span></div>
+            <form class="provider-evaluate-form" id="providerEvaluateForm">
+              <label>IP de ejemplo o ASN<input id="providerEvaluateQuery" required placeholder="Dirección IP o ASN" autocomplete="off"></label>
+              <label>Nombre esperado, opcional<input id="providerExpectedName" placeholder="DigitalOcean LLC" maxlength="100" autocomplete="off"></label>
+              <button class="primary-button" type="submit">Evaluar proveedor</button>
+            </form>
+            <div class="provider-evaluation empty-state" id="providerEvaluation">Primero evalúa el ASN. El bloqueo sólo se habilitará después de una revisión aprobada.</div>
+          </article>
+
+          <article class="panel block-audit-panel">
+            <div class="panel-heading"><div><h2>Historial de acciones del panel</h2><p>Bloqueos y desbloqueos manuales recientes</p></div></div>
+            <div class="table-scroll block-table"><table><thead><tr><th>Fecha</th><th>Acción</th><th>Objetivo</th><th>Resultado</th><th>Motivo</th></tr></thead><tbody id="blockAuditRows"></tbody></table></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-authorized-ips">
+        <article class="panel"><div class="panel-heading"><div><h2>IP autorizadas</h2><p id="authorizedCount">Consultando al servidor…</p></div><button class="secondary-button" id="authorizedRefresh" type="button">Actualizar</button></div>
+        <div class="authorized-content"><p>Los accesos autenticados desde estas IP no generan alertas en ningún servicio supervisado. Esta lista no abre puertos ni concede permisos de acceso.</p>
+        <form id="authorizedForm" class="authorized-form"><label>IP a autorizar<input id="authorizedIp" name="ip" placeholder="IPv4 o IPv6" maxlength="80" required autocomplete="off" spellcheck="false"></label><button id="authorizedAdd" class="primary-button" type="submit">Añadir IP</button></form>
+        <p id="authorizedError" class="error" role="status"></p><p id="authorizedSource" class="appearance-hint"></p>
+        <div class="table-scroll"><table><thead><tr><th>Dirección</th><th>Tipo</th><th>Acción</th></tr></thead><tbody id="authorizedRows"></tbody></table></div></div></article>
+      </section>
+      <section class="view" id="view-system">
+        <div class="section-stats"><article><span>Uso del disco</span><strong id="systemDisk">—</strong></article><article><span>Uso de memoria</span><strong id="systemMemory">—</strong></article><article><span>Tiempo activo</span><strong id="systemUptime">—</strong></article></div>
+        <div class="two-column"><article class="panel"><div class="panel-heading"><div><h2>Servicios supervisados</h2><p>Estado actual informado por systemd</p></div></div><div class="service-list" id="serviceList"></div></article><article class="panel"><div class="panel-heading"><div><h2>Conexión privada</h2><p>Canal local hacia el servidor</p></div></div><dl class="system-info"><div><dt>Servidor</dt><dd id="systemHost">—</dd></div><div><dt>IP pública</dt><dd id="systemPublicIp">—</dd></div><div><dt>Distribución del servidor</dt><dd id="systemOsInfo">Detectando…</dd></div><div><dt>CPU</dt><dd id="systemCpuInfo">—</dd></div><div><dt>RAM total</dt><dd id="systemRamInfo">—</dd></div><div><dt>Disco total</dt><dd id="systemDiskInfo">—</dd></div><div><dt>IP Tailscale</dt><dd id="systemTailscale">—</dd></div><div><dt>Canal SSH</dt><dd id="systemTransport">—</dd></div><div><dt>Monitoreo de aceptadas</dt><dd id="systemUfwLogging">—</dd></div><div><dt>Reglas de proveedores</dt><dd id="systemRules">—</dd></div><div><dt>Última sincronización</dt><dd id="systemSync">—</dd></div></dl><button class="refresh-button" id="refreshButton">Actualizar ahora</button></article></div>
+        <article class="panel server-reboot-panel"><div><h2>Reiniciar el servidor</h2><p id="serverRebootStatus" role="status">Reinicia el servidor completo. Las conexiones y los servicios se interrumpirán temporalmente.</p></div><button class="danger-button" type="button" id="serverRebootOpen" disabled>Reiniciar servidor</button></article>
+      </section>
+      <section class="view" id="view-alerts">
+        <article class="panel"><div class="panel-heading"><div><h2>Alertas por Telegram</h2><p>Un servicio independiente que sigue funcionando con tu PC apagada.</p></div><button type="button" class="secondary-button" id="alertsRefresh">Actualizar</button></div>
+          <p class="notice" id="alertsState" role="status">Consultando el estado del servidor…</p><p id="alertsAccount"></p><p id="alertsService"></p><p id="alertsRuntime" role="status"></p><p class="appearance-hint" id="alertsCoverage"></p>
+          <div class="appearance-sound-preview"><button type="button" class="secondary-button" id="alertsPrepared" disabled>Servicio único del panel</button><button type="button" class="secondary-button" id="alertsToggle" disabled>Activar envío</button></div>
+        </article>
+        <form class="panel" id="alertsForm" autocomplete="off"><h2>Configurar el bot del panel</h2><p>Usá un bot nuevo. El bot de alertas anterior no se modifica ni comparte credenciales.</p>
+          <div class="filters"><label>Token del bot<input id="alertsToken" type="password" maxlength="101" autocomplete="new-password" placeholder="Token nuevo; vacío conserva el actual" spellcheck="false"></label>
+          <label>Chat ID<input id="alertsChat" type="text" maxlength="20" inputmode="numeric" placeholder="Tu chat de Telegram" spellcheck="false"></label>
+          <label>Administrador del grupo<input id="alertsAdmin" type="text" maxlength="19" inputmode="numeric" placeholder="Sólo necesario para grupos" spellcheck="false"></label></div>
+          <label class="checkbox-line"><input id="alertsEnable" type="checkbox">Activar envío al guardar</label>
+          <p class="appearance-hint">En un chat privado, sólo su titular puede activar o desactivar los avisos. Para grupos, indicá el ID de la persona autorizada. Desactivar pausa los envíos y mantiene disponible el control de Telegram.</p>
+          <p class="appearance-hint">Se avisan accesos autenticados de SSH, FTP y MySQL/MariaDB desde IP no autorizadas. País e ISP se consultan mediante HTTPS en ipwho.is y se guardan temporalmente para evitar repetir consultas. No se envían contraseñas ni registros completos a ese proveedor.</p>
+          <button type="submit" class="primary-button" id="alertsSave" disabled>Guardar configuración en el servidor</button><p id="alertsError" role="status"></p>
+        </form>
+      </section>
+      <section class="view" id="view-appearance">
+        <div class="appearance-hero"><div><span class="appearance-eyebrow">Tu espacio, tu estilo</span><h2>Un panel a tu manera</h2><p>Elegí la luz y los colores que te acompañan. Los cambios se aplican al instante y tu elección se conserva cuando volvés.</p></div><div class="appearance-emblem" aria-hidden="true">◐</div></div>
+        <form class="panel appearance-panel" id="appearanceForm">
+          <fieldset><legend>Modo de color</legend><p class="appearance-hint">La misma información, con la iluminación que prefieras.</p><div class="appearance-modes">
+            <label class="appearance-mode"><input type="radio" name="panel-mode" value="dark" aria-label="Oscuro"><span aria-hidden="true">☾</span><div><strong>Oscuro</strong><small>Profundo y relajado</small></div></label>
+            <label class="appearance-mode"><input type="radio" name="panel-mode" value="light" aria-label="Claro"><span aria-hidden="true">☀</span><div><strong>Claro</strong><small>Limpio y luminoso</small></div></label>
+            <label class="appearance-mode"><input type="radio" name="panel-mode" value="ivory" aria-label="Marfil"><span aria-hidden="true">◒</span><div><strong>Marfil</strong><small>Blanco cálido y suave</small></div></label>
+            <label class="appearance-mode"><input type="radio" name="panel-mode" value="pearl" aria-label="Perla"><span aria-hidden="true">◯</span><div><strong>Perla</strong><small>Gris claro y sereno</small></div></label>
+          </div></fieldset>
+          <fieldset><legend>Estilo del panel</legend><p class="appearance-hint">Cinco paletas que combinan con todos los modos de color.</p><div class="appearance-themes"><label class="appearance-card" data-theme="ocean"><input type="radio" name="panel-theme" value="ocean" aria-label="Océano"><div class="theme-preview" aria-hidden="true"><div class="preview-side"><i></i><i></i><i></i><i></i><i></i></div><div class="preview-body"><div class="preview-title"></div><div class="preview-stats"><i></i><i></i><i></i></div><div class="preview-chart"><i></i><i></i><i></i><i></i><i></i></div></div></div><div><h3>Océano</h3><p>Azules luminosos y líneas modernas.</p><span class="appearance-chosen" aria-hidden="true">✓ Elegido</span></div></label>
+<label class="appearance-card" data-theme="graphite"><input type="radio" name="panel-theme" value="graphite" aria-label="Grafito"><div class="theme-preview" aria-hidden="true"><div class="preview-side"><i></i><i></i><i></i><i></i><i></i></div><div class="preview-body"><div class="preview-title"></div><div class="preview-stats"><i></i><i></i><i></i></div><div class="preview-chart"><i></i><i></i><i></i><i></i><i></i></div></div></div><div><h3>Grafito</h3><p>Tonos neutros y una elegancia sobria.</p><span class="appearance-chosen" aria-hidden="true">✓ Elegido</span></div></label>
+<label class="appearance-card" data-theme="aurora"><input type="radio" name="panel-theme" value="aurora" aria-label="Aurora"><div class="theme-preview" aria-hidden="true"><div class="preview-side"><i></i><i></i><i></i><i></i><i></i></div><div class="preview-body"><div class="preview-title"></div><div class="preview-stats"><i></i><i></i><i></i></div><div class="preview-chart"><i></i><i></i><i></i><i></i><i></i></div></div></div><div><h3>Aurora</h3><p>Violeta suave y acentos de menta.</p><span class="appearance-chosen" aria-hidden="true">✓ Elegido</span></div></label>
+
+<label class="appearance-card" data-theme="emerald"><input type="radio" name="panel-theme" value="emerald" aria-label="Esmeralda"><div class="theme-preview" aria-hidden="true"><div class="preview-side"><i></i><i></i><i></i><i></i><i></i></div><div class="preview-body"><div class="preview-title"></div><div class="preview-stats"><i></i><i></i><i></i></div><div class="preview-chart"><i></i><i></i><i></i><i></i><i></i></div></div></div><div><h3>Esmeralda</h3><p>Verdes profundos y frescura natural.</p><span class="appearance-chosen" aria-hidden="true">✓ Elegido</span></div></label>
+<label class="appearance-card" data-theme="copper"><input type="radio" name="panel-theme" value="copper" aria-label="Cobre"><div class="theme-preview" aria-hidden="true"><div class="preview-side"><i></i><i></i><i></i><i></i><i></i></div><div class="preview-body"><div class="preview-title"></div><div class="preview-stats"><i></i><i></i><i></i></div><div class="preview-chart"><i></i><i></i><i></i><i></i><i></i></div></div></div><div><h3>Cobre</h3><p>Tonos tierra y detalles de cobre.</p><span class="appearance-chosen" aria-hidden="true">✓ Elegido</span></div></label>
+</div></fieldset>
+          <fieldset><legend>Animaciones</legend><p class="appearance-hint">Pequeños movimientos al pulsar botones, cambiar de sección y abrir ventanas. Se respeta la reducción de movimiento del navegador.</p><div class="appearance-modes appearance-motion">
+            <label class="appearance-mode"><input type="radio" name="panel-motion" value="off" aria-label="Sin animaciones"><span aria-hidden="true">○</span><div><strong>Desactivadas</strong><small>Cambios instantáneos</small></div></label>
+            <label class="appearance-mode"><input type="radio" name="panel-motion" value="subtle" aria-label="Animaciones suaves"><span aria-hidden="true">≈</span><div><strong>Suaves</strong><small>Un toque de movimiento</small></div></label>
+            <label class="appearance-mode"><input type="radio" name="panel-motion" value="fluid" aria-label="Animaciones fluidas"><span aria-hidden="true">〰</span><div><strong>Fluidas</strong><small>Transiciones más expresivas</small></div></label>
+          </div></fieldset>
+          <fieldset><legend>Sonidos de navegación</legend><p class="appearance-hint">Un toque breve y suave al pulsar los botones. La campanita tiene su propio tono. Esta preferencia se conserva al volver a abrir el panel.</p><div class="appearance-modes appearance-sound">
+            <label class="appearance-mode"><input type="radio" name="panel-sound" value="off" aria-label="Sonidos desactivados"><span aria-hidden="true">♩</span><div><strong>Desactivados</strong><small>Navegación silenciosa</small></div></label>
+            <label class="appearance-mode"><input type="radio" name="panel-sound" value="on" aria-label="Sonidos activados"><span aria-hidden="true">♫</span><div><strong>Activados</strong><small>Clics suaves y campanita</small></div></label>
+          </div><div class="appearance-sound-preview"><button type="button" class="secondary-button" data-preview-sound="menu" disabled>Probar clic</button><button type="button" class="secondary-button" data-preview-sound="notification" disabled>Probar campanita</button></div><p class="appearance-hint" id="appearanceSoundStatus" role="status"></p></fieldset>
+          <fieldset><legend>Sonidos de alertas</legend><p class="appearance-hint">Un aviso automático al descubrir accesos no autorizados nuevos, independiente de los sonidos de navegación.</p>
+            <label class="checkbox-line"><input type="checkbox" id="alertSoundEnabled" checked>Activar sonidos de alertas</label>
+            <div class="appearance-sound-preview"><label>Sonido <select id="alertSoundTone"><option value="chime">Campanas</option><option value="pulse">Pulso</option><option value="soft">Suave</option></select></label><button type="button" class="secondary-button" id="alertSoundPreview">Probar sonido</button><button type="button" class="secondary-button" id="alertSoundUnlock" hidden>Habilitar sonido</button></div>
+            <p class="appearance-hint" id="alertSoundStatus" role="status"></p></fieldset>
+          <div class="appearance-footer"><p id="appearanceSaved" role="status" aria-live="polite"></p><button class="secondary-button" type="button" id="appearanceReset">Restablecer apariencia</button></div>
+        </form>
+      </section>
+      <section class="view cleanup-panel" id="view-cleanup">
+        <div class="section-stats cleanup-stats">
+          <article><span>Registros en el servidor</span><strong id="cleanupRemoteSize">—</strong></article>
+          <article><span>Historial y archivos locales</span><strong id="cleanupLocalSize">—</strong></article>
+          <article><span>Disco del servidor</span><strong id="cleanupDisk">—</strong><small id="cleanupDiskTotal">Disco del servidor</small></article>
+          <article><span>Eventos en el panel</span><strong id="cleanupEventCount">—</strong></article>
+        </div>
+        <article class="panel cleanup-summary">
+          <div class="panel-heading"><div><h2>Limpiar registros</h2><p id="cleanupSources">Consultando el espacio ocupado…</p></div><button id="cleanupRefresh" class="secondary-button" type="button">Actualizar</button></div>
+          <p class="cleanup-warning">El borrado es irreversible. Limpia el journal completo del sistema, los logs de seguridad y accesos web, los reportes SSH y el historial local del panel. Conserva las reglas del firewall, servicios, usuarios, bases de datos y archivos de historias.</p>
+          <p>Se seguirán registrando eventos nuevos inmediatamente. El journal activo conserva un espacio mínimo; no quedará permanentemente en 0 MB.</p>
+          <p id="cleanupStatus" role="status"></p><p id="cleanupWarnings" class="error"></p>
+          <button id="cleanupNow" class="danger-button" type="button" disabled>Revisar borrado de todos los registros</button>
+        </article>
+        <article class="panel cleanup-summary">
+          <div class="panel-heading"><div><h2>Programar limpieza</h2><p id="cleanupTimer">Comprobando el programador del servidor…</p></div></div>
+          <form id="cleanupScheduleForm" class="forwarding-form cleanup-form">
+            <label>Primera limpieza<input id="cleanupAt" type="datetime-local" required></label>
+            <label>Repetición<select id="cleanupInterval"><option value="0">Una sola vez</option><option value="1">Cada día</option><option value="2">Cada 2 días</option><option value="3">Cada 3 días</option><option value="5">Cada 5 días</option><option value="7">Cada semana</option><option value="14">Cada 2 semanas</option><option value="30">Cada 30 días</option></select></label>
+            <div><button id="cleanupSchedule" type="submit" class="primary-button" disabled>Revisar programación</button></div>
+          </form>
+          <p id="cleanupTimezone" class="ports-explanation"></p>
+          <p class="ports-explanation">El servidor comprueba las fechas cada minuto. Si estaba apagado, ejecutará la limpieza pendiente al volver a arrancar. Finalizada significa que el servidor confirmó el borrado; una ejecución fallida muestra Error. Las repetidas mantienen Pendiente para la próxima fecha.</p>
+        </article>
+        <article class="panel cleanup-summary"><div class="panel-heading"><div><h2>Programaciones guardadas</h2><p>Podés cancelar o eliminar las pendientes antes de su ejecución.</p></div></div><div class="table-scroll"><table><thead><tr><th>Próxima fecha / fecha prevista</th><th>Repetición</th><th>Estado</th><th>Resultado</th><th>Acciones</th></tr></thead><tbody id="cleanupRows"><tr><td colspan="5">Cargando…</td></tr></tbody></table></div></article>
+      </section>
+      <footer class="panel-credits" aria-label="Créditos del panel"><p>Panel creado by <strong>FacuSecX</strong></p><a href="https://github.com/FacuSecX" target="_blank" rel="noopener noreferrer" aria-label="Perfil de FacuSecX en GitHub (se abre en otra pestaña)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.77-.24.77-.54v-2.08c-3.14.68-3.8-1.34-3.8-1.34-.52-1.3-1.26-1.65-1.26-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1.01 1.72 2.64 1.22 3.29.93.1-.73.4-1.22.72-1.5-2.5-.28-5.14-1.25-5.14-5.58 0-1.23.44-2.23 1.16-3.02-.12-.29-.5-1.43.11-2.98 0 0 .95-.3 3.08 1.15a10.7 10.7 0 0 1 5.6 0c2.13-1.45 3.08-1.15 3.08-1.15.61 1.55.23 2.69.11 2.98.72.79 1.16 1.79 1.16 3.02 0 4.34-2.65 5.3-5.17 5.58.41.35.77 1.03.77 2.08v3.09c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z"/></svg><span>GitHub · FacuSecX</span></a><span class="panel-version">Versión 3.0</span><a href="https://db-ip.com" target="_blank" rel="noopener noreferrer">Geolocalización: DB-IP</a><a href="https://iptoasn.com/" target="_blank" rel="noopener noreferrer">Redes: IPtoASN</a></footer>
+    </main>
+  </div>
+
+  <dialog class="port-dialog ssh-live-dialog" id="sshLiveDialog" aria-labelledby="sshLiveTitle">
+    <div class="dialog-surface">
+      <header class="dialog-header ssh-live-header">
+        <div>
+          <span class="dialog-kicker">Monitoreo SSH</span>
+          <h2 id="sshLiveTitle">Actividad SSH en vivo</h2>
+          <p id="sshLiveSubtitle">Intentos de autenticación y conexiones detenidas antes de alcanzar SSH</p>
+        </div>
+        <div class="ssh-live-header-actions">
+          <span class="ssh-live-indicator"><i></i>En vivo</span>
+          <button class="dialog-close" id="sshLiveClose" type="button" aria-label="Cerrar monitor SSH">×</button>
+        </div>
+      </header>
+      <div class="ssh-live-toolbar">
+        <label><span>Resultado</span><select id="sshLiveResult"><option value="">Todos</option><option value="success">Exitosos</option><option value="failed">Autenticación fallida</option><option value="blocked">Bloqueados por firewall</option></select></label>
+        <label><span>Usuario probado</span><select id="sshLiveUser"><option value="">Todos los usuarios</option></select></label>
+        <label class="ssh-live-search"><span>Buscar IP, país, ISP o ASN</span><input id="sshLiveQuery" placeholder="IP, país, ISP o ASN" autocomplete="off"></label>
+        <button class="ssh-live-clear" id="sshLiveClear" type="button">Limpiar filtros</button>
+      </div>
+      <div class="detail-stats ssh-live-stats" id="sshLiveStats"></div>
+      <div class="table-scroll ssh-live-table">
+        <table>
+          <thead><tr><th>Fecha y hora</th><th>IP origen</th><th>País</th><th>Proveedor / ISP / ASN</th><th>Usuario</th><th>Método</th><th>Resultado</th></tr></thead>
+          <tbody id="sshLiveRows"><tr><td colspan="7" class="empty-state">Abre el monitor para consultar la actividad.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="port-dialog country-dialog" id="countryDialog" aria-labelledby="countryDialogTitle">
+    <div class="dialog-surface">
+      <header class="dialog-header country-dialog-header">
+        <div>
+          <span class="dialog-kicker">Resumen geográfico</span>
+          <h2 id="countryDialogTitle">Actividad por país</h2>
+          <p id="countryDialogSubtitle">Eventos bloqueados y aceptados por el firewall</p>
+        </div>
+        <div class="country-dialog-actions">
+          <div class="period-switch country-period-switch" aria-label="Período del resumen por países">
+            <button data-hours="24">24 h</button>
+            <button data-hours="168">7 días</button>
+            <button data-hours="720">30 días</button>
+          </div>
+          <button class="dialog-close" id="countryDialogClose" type="button" aria-label="Cerrar resumen">×</button>
+        </div>
+      </header>
+      <div class="detail-stats country-detail-stats" id="countryDetailStats"></div>
+      <div class="country-all-grid" id="countryAllGrid"></div>
+    </div>
+  </dialog>
+
+  <dialog class="port-dialog" id="portDialog" aria-labelledby="portDialogTitle">
+    <div class="dialog-surface">
+      <header class="dialog-header">
+        <div>
+          <span class="dialog-kicker">Actividad bloqueada</span>
+          <h2 id="portDialogTitle">Detalle del puerto</h2>
+          <p id="portDialogSubtitle">IP, país y horario de cada evento registrado</p>
+        </div>
+        <button class="dialog-close" id="portDialogClose" type="button" aria-label="Cerrar detalle">×</button>
+      </header>
+      <div class="detail-stats" id="portDetailStats"></div>
+      <div class="table-scroll dialog-table">
+        <table>
+          <thead><tr><th>Fecha y hora</th><th>IP origen</th><th>País</th><th>Proveedor / ISP</th><th>Resultado</th></tr></thead>
+          <tbody id="portDetailRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </dialog>
+  <dialog class="port-dialog confirm-dialog" id="blockConfirmDialog" aria-labelledby="blockConfirmTitle">
+    <div class="dialog-surface">
+      <header class="dialog-header">
+        <div><span class="dialog-kicker danger-text">Cambio de firewall</span><h2 id="blockConfirmTitle">Confirmar bloqueo</h2><p>Esta operación afectará inmediatamente al tráfico entrante.</p></div>
+        <button class="dialog-close" id="blockConfirmClose" type="button" aria-label="Cancelar">×</button>
+      </header>
+      <div class="confirm-content">
+        <p>Se bloqueará <strong id="blockConfirmIp">—</strong> en <strong>todos los puertos y protocolos</strong>.</p>
+        <p class="confirm-reason" id="blockConfirmReason"></p>
+        <label class="confirm-check"><input type="checkbox" id="blockConfirmCheck"> Confirmo que revisé la IP y deseo aplicar el bloqueo.</label>
+        <div class="confirm-actions"><button class="secondary-button" id="blockConfirmCancel" type="button">Cancelar</button><button class="danger-button" id="blockConfirmApply" type="button" disabled>Bloquear IP</button></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog class="port-dialog confirm-dialog" id="unblockConfirmDialog" aria-labelledby="unblockConfirmTitle">
+    <div class="dialog-surface">
+      <header class="dialog-header"><div><span class="dialog-kicker">Cambio de firewall</span><h2 id="unblockConfirmTitle">Quitar bloqueo</h2><p>La dirección volverá a depender de las demás reglas existentes.</p></div><button class="dialog-close" id="unblockConfirmClose" type="button" aria-label="Cancelar">×</button></header>
+      <div class="confirm-content"><p>¿Quitar el bloqueo manual de <strong id="unblockConfirmIp">—</strong>?</p><div class="confirm-actions"><button class="secondary-button" id="unblockConfirmCancel" type="button">Cancelar</button><button class="primary-button" id="unblockConfirmApply" type="button">Desbloquear IP</button></div></div>
+    </div>
+  </dialog>
+  <dialog class="port-dialog confirm-dialog" id="providerBlockConfirmDialog" aria-labelledby="providerBlockConfirmTitle">
+    <div class="dialog-surface">
+      <header class="dialog-header"><div><span class="dialog-kicker danger-text">Bloqueo masivo aprobado</span><h2 id="providerBlockConfirmTitle">Confirmar proveedor</h2><p>Todos los prefijos revisados quedarán bloqueados en todos los puertos y protocolos.</p></div><button class="dialog-close" id="providerBlockConfirmClose" type="button" aria-label="Cancelar">×</button></header>
+      <div class="confirm-content">
+        <p>Proveedor: <strong id="providerBlockConfirmName">—</strong></p>
+        <p>ASN: <strong id="providerBlockConfirmAsn">—</strong> · <strong id="providerBlockConfirmPrefixes">0 prefijos</strong></p>
+        <label class="confirm-field">Escribe el ASN exacto para confirmar<input id="providerBlockConfirmInput" autocomplete="off" spellcheck="false" placeholder="AS12345"></label>
+        <label class="confirm-check"><input type="checkbox" id="providerBlockConfirmCheck"> Confirmo que este proveedor fue revisado y aprobado, y deseo bloquear todos sus prefijos actuales.</label>
+        <div class="confirm-actions"><button class="secondary-button" id="providerBlockConfirmCancel" type="button">Cancelar</button><button class="danger-button" id="providerBlockConfirmApply" type="button" disabled>Bloquear proveedor</button></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog class="port-dialog confirm-dialog" id="providerUnblockConfirmDialog" aria-labelledby="providerUnblockConfirmTitle">
+    <div class="dialog-surface">
+      <header class="dialog-header"><div><span class="dialog-kicker">Cambio de firewall</span><h2 id="providerUnblockConfirmTitle">Quitar bloqueo del proveedor</h2><p>Todos sus prefijos volverán a depender de las demás reglas existentes.</p></div><button class="dialog-close" id="providerUnblockConfirmClose" type="button" aria-label="Cancelar">×</button></header>
+      <div class="confirm-content"><p>¿Quitar el bloqueo completo de <strong id="providerUnblockConfirmName">—</strong> (<strong id="providerUnblockConfirmAsn">—</strong>)?</p><div class="confirm-actions"><button class="secondary-button" id="providerUnblockConfirmCancel" type="button">Cancelar</button><button class="primary-button" id="providerUnblockConfirmApply" type="button">Desbloquear proveedor</button></div></div>
+    </div>
+  </dialog>
+  <dialog class="port-dialog confirm-dialog" id="managedPortDialog" aria-labelledby="managedPortTitle">
+    <div class="dialog-surface">
+      <header class="dialog-header"><div><span class="dialog-kicker">Gestión de puertos</span><h2 id="managedPortTitle">Revisar cambio</h2></div><button class="dialog-close" id="managedPortClose" type="button" aria-label="Cancelar">×</button></header>
+      <div class="confirm-content"><p id="managedPortEffect"></p><p id="managedPortFamilies"></p><p id="managedPortExceptions"></p><p id="managedPortError" role="alert"></p><label class="port-confirm-check"><input id="managedPortConfirm" type="checkbox"> Confirmo este cambio en el firewall del servidor</label><div class="confirm-actions"><button class="secondary-button" id="managedPortCancel" type="button">Cancelar</button><button class="primary-button" id="managedPortApply" type="button" disabled>Aplicar cambio</button></div></div>
+    </div>
+  </dialog>
+  <dialog class="port-dialog confirm-dialog" id="forwardingDialog" aria-labelledby="forwardingDialogTitle"><div class="dialog-surface">
+    <header class="dialog-header"><div><span class="dialog-kicker">Port Forwarding</span><h2 id="forwardingDialogTitle">Revisar redirección</h2></div><button class="dialog-close" id="forwardingClose" type="button" aria-label="Cancelar">×</button></header>
+    <div class="confirm-content"><p id="forwardingSummary"></p><p id="forwardingService" class="forwarding-warning"></p><p id="forwardingRouting"></p><p id="forwardingPlanNotice" class="ports-explanation"></p><p id="forwardingError" role="alert"></p><label class="port-confirm-check"><input type="checkbox" id="forwardingConfirm"> Confirmo este cambio de redirección en el servidor</label><div class="confirm-actions"><button class="secondary-button" id="forwardingCancel" type="button">Cancelar</button><button class="primary-button" id="forwardingApply" type="button" disabled>Aplicar cambio</button></div></div>
+  </div></dialog>
+  <dialog class="port-dialog confirm-dialog" id="servicesDialog" aria-labelledby="servicesDialogTitle"><div class="dialog-surface"><header class="dialog-header"><div><span class="dialog-kicker">Servicios · FTP</span><h2 id="servicesDialogTitle">Revisar cambio</h2></div><button class="dialog-close" id="servicesClose" type="button" aria-label="Cancelar">×</button></header><div class="confirm-content"><p id="servicesSummary"></p><p class="ports-explanation" id="servicesNotice"></p><p id="servicesError" role="alert"></p><label class="port-confirm-check"><input id="servicesConfirm" type="checkbox"> Confirmo este cambio de FTP en el servidor</label><div class="confirm-actions"><button class="secondary-button" id="servicesCancel" type="button">Cancelar</button><button class="primary-button" id="servicesApply" type="button" disabled>Aplicar cambio</button></div></div></div></dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <dialog class="port-dialog notifications-dialog" id="notificationsDialog" aria-labelledby="notificationsTitle">
+    <div class="dialog-surface"><header class="dialog-header"><div><span class="dialog-kicker">Seguridad del servidor</span><h2 id="notificationsTitle">Notificaciones</h2><p id="notificationsSummary" role="status">Cargando alertas…</p></div><button class="dialog-close" id="notificationsClose" type="button" aria-label="Cerrar notificaciones">×</button></header>
+    <div class="notifications-toolbar"><span id="notificationsCoverage"></span><button class="secondary-button" id="notificationsReadAll" type="button" disabled>Marcar todas como leídas</button><button type="button" class="text-button notification-delete" id="notificationsDeleteRead" disabled>Borrar leídas</button></div>
+    <p id="notificationsError" role="status"></p><div class="notifications-list" id="notificationsList"></div>
+    <button class="text-button" id="notificationsMore" type="button" hidden>Ver anteriores</button>
+    <p class="notifications-note">Sólo se notifican accesos autenticados desde IP no autorizadas. Los intentos fallidos, escaneos y paquetes de red no generan alertas. MySQL sin auditoría: sólo se detectan sesiones autenticadas observadas durante la sincronización; las sesiones muy breves pueden no registrarse.</p></div>
+  </dialog>
+  <button type="button" id="alertSoundPending" class="alert-sound-pending" hidden>🔔 Alerta nueva · Habilitar sonido</button>
+  <script src="/notifications.js" defer></script>
+  <dialog class="confirm-dialog" id="authorizedDialog" aria-labelledby="authorizedTitle"><h2 id="authorizedTitle">Confirmar autorización</h2><p id="authorizedEffect"></p><p id="authorizedDialogError" class="error" role="status"></p><label class="port-confirm-check"><input type="checkbox" id="authorizedConfirm"> Revisé el cambio y lo confirmo.</label><div class="confirm-actions"><button class="secondary-button" id="authorizedCancel" type="button">Cancelar</button><button class="primary-button" id="authorizedApply" type="button" disabled>Aplicar</button></div></dialog>
+  <script src="/authorized-ips.js" defer></script>
+  <script src="/terminal.js" defer></script>
+  <script src="/panel-users.js" defer></script>
+  <script src="/app.js" defer></script>
+  <script src="/network-traffic.js" defer></script>
+  <script src="/alerts.js" defer></script>
+<dialog class="confirm-dialog" id="mysqlDialog" aria-labelledby="mysqlDialogTitle"><h2 id="mysqlDialogTitle">Confirmar MySQL</h2><p id="mysqlSummary"></p><p class="ports-explanation" id="mysqlNotice"></p><p class="error" id="mysqlError"></p><label class="port-confirm-check"><input type="checkbox" id="mysqlConfirm"> Revisé los detalles y confirmo esta operación.</label><div class="forwarding-form-actions"><button class="primary-button" id="mysqlApply" disabled>Aplicar cambio</button><button class="secondary-button" id="mysqlCancel">Cancelar</button></div></dialog>
+<dialog class="confirm-dialog db-record-dialog" id="dbRecordDialog" aria-labelledby="dbRecordTitle"><h2 id="dbRecordTitle">Registro</h2><form class="forwarding-form" id="dbRecordForm"><div id="dbRecordFields"></div><p class="error" id="dbRecordError"></p><div class="forwarding-form-actions"><button class="primary-button" type="submit">Confirmar y guardar</button><button class="secondary-button" type="button" id="dbRecordCancel">Cancelar</button></div></form></dialog>
+<script src="mysql.js" defer></script>
+<dialog class="confirm-dialog cleanup-dialog" id="serviceVersionsDialog" aria-labelledby="serviceVersionsTitle"><h2 id="serviceVersionsTitle">Versiones disponibles</h2><p id="serviceVersionsInstalled"></p><p id="serviceVersionsMessage" role="status"></p><label class="mysql-check" for="serviceVersionSelect">Versión disponible</label><select id="serviceVersionSelect" size="7" style="width:100%;margin:12px 0" aria-label="Versiones disponibles"></select><div class="confirm-actions"><button type="button" class="secondary-button" id="serviceVersionsRefresh">Actualizar repositorios</button><button type="button" class="secondary-button" id="serviceVersionsClose">Volver</button><button type="button" class="primary-button" id="serviceVersionContinue" disabled>Revisar versión seleccionada</button></div></dialog>
+<script src="/service-versions.js" defer></script>
+<dialog class="confirm-dialog catalog-dialog" id="catalogDialog" aria-labelledby="catalogTitle">
+<h2 id="catalogTitle">Servicio</h2><p id="catalogDialogStatus" role="status"></p><div id="catalogVersionArea"><label for="catalogVersionSelect">Versión / revisión disponible</label><select id="catalogVersionSelect" size="5" aria-label="Versiones del servicio"></select><p id="catalogVersionNotice"></p></div><div id="catalogReview" hidden><dl id="catalogPlanDetails"></dl><label class="port-confirm-check" id="catalogEraseLabel" hidden><input type="checkbox" id="catalogErase"> Entiendo que se borrarán permanentemente sus datos y configuración.</label></div>
+<div class="confirm-actions"><button type="button" class="secondary-button" id="catalogClose">Volver</button><button type="button" class="secondary-button" id="catalogVersionsRefresh">Actualizar repositorios</button><button type="button" class="primary-button" id="catalogVersionContinue" disabled>Revisar versión</button><button type="button" class="danger-button" id="catalogConfirm" hidden>Confirmar</button></div>
+</dialog><script src="/catalog-services.js" defer></script>
+<link rel="stylesheet" href="/cloudflare.css"><script src="/cloudflare.js" defer></script>
+<dialog class="confirm-dialog cleanup-dialog" id="cleanupConfirm" aria-labelledby="cleanupConfirmTitle"><h2 id="cleanupConfirmTitle">Confirmar limpieza</h2><p id="cleanupConfirmText"></p><p id="cleanupConfirmDetail" role="status"></p><label class="port-confirm-check"><input id="cleanupConfirmCheck" type="checkbox"> Revisé el alcance y confirmo esta operación.</label><div class="confirm-actions"><button id="cleanupConfirmCancel" class="secondary-button" type="button">Volver</button><button id="cleanupConfirmApply" class="danger-button" type="button" disabled>Confirmar</button></div></dialog>
+<script src="/cleanup.js" defer></script>
+<dialog class="server-reboot-dialog" id="serverRebootDialog" aria-labelledby="serverRebootTitle"><h2 id="serverRebootTitle">Confirmar reinicio del servidor</h2><p>Vas a reiniciar este servidor:</p><p class="server-reboot-target" id="serverRebootTarget"></p><p>Se interrumpirán temporalmente todos sus servicios y conexiones. El reinicio comenzará aproximadamente 5 segundos después de confirmar. El panel intentará reconectarse automáticamente.</p><label class="port-confirm-check"><input type="checkbox" id="serverRebootConfirm"> Confirmo que quiero reiniciar este servidor.</label><p class="error" id="serverRebootError" role="alert"></p><div class="confirm-actions"><button type="button" class="secondary-button" id="serverRebootCancel">Cancelar</button><button type="button" class="danger-button" id="serverRebootApply" disabled>Sí, reiniciar servidor</button></div></dialog>
+<script src="/server-info.js" defer></script>
+<dialog id="gamesDialog" class="port-dialog games-dialog" aria-labelledby="gamesDialogTitle">
+ <div class="dialog-surface games-dialog-surface"><h2 id="gamesDialogTitle">SA-MP</h2><p id="gamesDialogStatus" role="status"></p>
+ <p id="gamesRestartWarning" class="games-warning games-restart-warning" role="alert" hidden>Al guardar cambios, SA-MP se reiniciará si está encendido y los jugadores conectados serán desconectados. Revisar los cambios no modifica ni reinicia el juego.</p>
+ <form id="gameInstallForm" class="games-settings" hidden><label>Nombre del servidor<input id="gameInstallHostname" maxlength="80" value="Servidor SA-MP" required></label><div class="games-field-pair"><label>Puerto UDP<input id="gameInstallPort" type="number" min="1024" max="65535" value="7777" required></label><label>Jugadores máximos<input id="gameInstallPlayers" type="number" min="1" max="1000" value="50" required></label></div><fieldset class="games-assets"><legend>Acceso a los archivos por FTP</legend><label class="games-check"><input id="gameInstallFtp" type="checkbox" checked>Crear una cuenta FTP exclusiva para SA-MP</label><label class="games-ftp-install-user">Usuario FTP<input id="gameInstallFtpUsername" value="sampftp" pattern="[a-z][a-z0-9_\-]{2,31}" minlength="3" maxlength="32" autocomplete="off" required></label><p class="games-note">La contraseña se genera automáticamente y se guarda cifrada. Podrás verla en Gestionar juegos mediante Windows Hello. La cuenta queda encerrada en la carpeta SA-MP, sin acceso SSH. Se habilitarán 21/TCP y 50000–50019/TCP; usá FTP con TLS explícito.</p></fieldset><p class="games-note">Incluye grandlarc, las bibliotecas de 32 bits y el arranque automático del juego. No instala MySQL.</p></form>
+ <dl id="gamesPlanDetails" hidden></dl><label id="gamesEraseLabel" class="games-check" hidden><input type="checkbox" id="gamesErase">Confirmo que se borrarán los archivos, configuraciones y registros de este juego.</label>
+ <label id="gamesRestartLabel" class="games-check" hidden><input type="checkbox" id="gamesRestartAck">Entiendo que aplicar estos cambios reiniciará el juego si está encendido y desconectará a los jugadores.</label>
+ <div class="dialog-actions"><button id="gamesClose" class="secondary-button" type="button">Cerrar</button><button id="gamesReview" class="primary-button" type="button">Revisar instalación</button><button id="gamesConfirm" class="primary-button" type="button" hidden>Confirmar</button></div>
+</div></dialog><script src="/games.js" defer></script>
+<dialog id="avatarDialog" aria-labelledby="avatarTitle"><div class="avatar-surface">
+ <h2 id="avatarTitle">Elegí tu avatar</h2><p>Se guardará para tu cuenta y aparecerá cuando vuelvas a ingresar.</p>
+ <div id="avatarOptions" class="avatar-options" role="radiogroup" aria-label="Avatares disponibles"></div>
+ <p id="avatarMessage" role="status" aria-live="polite"></p>
+ <div class="avatar-actions"><button id="avatarCancel" class="secondary-button" type="button">Cancelar</button><button id="avatarSave" class="primary-button" type="button">Guardar avatar</button></div>
+ </div></dialog><script src="/avatars.js" defer></script>
+</body>
+</html>

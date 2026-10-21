@@ -1,0 +1,18 @@
+[Unit]
+Description=StoryPulse scheduled security log cleanup
+After=systemd-journald.service time-sync.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/storypulse-securityctl cleanup-tick
+TimeoutStartSec=300
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=read-only
+ReadWritePaths=-/home/debian/security
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
