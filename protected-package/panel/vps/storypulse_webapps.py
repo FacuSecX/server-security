@@ -215,6 +215,7 @@ def extract(archive,target,kind,version):
 
 
 def plan(c,body):
+ if isinstance(body,dict) and body.get('service')=='wordpress' and body.get('action')=='install' and Path('/var/lib/storypulse-security/games/zone-web.json').exists():raise WebError('La raíz de esta IP pertenece a Zone. Se conserva el sitio existente.')
  c.strict(body,{'service','action','selection','erase_data'});kind=c.service(body);action=body.get('action')
  if action not in ('install','uninstall','upgrade'):raise WebError('Acción de aplicación no permitida.')
  p=c.distribution();info=own(c,kind);site=app_site(p,kind);inventory=c.package_inventory(p)
@@ -302,6 +303,9 @@ def vhost(stack,apps,frontuser):
   server+='root '+root+';\nindex index.php;\nlocation ~* ^/wp-content/uploads/.*\\.php$ { deny all; }\nlocation / { try_files $uri $uri/ /index.php?$args; }\nlocation ~ \\.php$ { try_files $uri =404;\nfastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n'+fast+'}\n'
  else:server+='location / { return 404; }\n'
  server+='}\n'
+ if Path('/var/lib/storypulse-security/games/zone-web.json').exists():
+  from storypulse_zone_web import extend
+  server=extend(server,apps)
  if stack['mode']=='dedicated':server='user '+frontuser+';\nworker_processes auto;\npid /run/server-monitor-webnginx/nginx.pid;\nevents { worker_connections 256; }\nhttp {\ninclude /etc/nginx/mime.types;\ndefault_type application/octet-stream;\naccess_log off;\n'+server+'}\n'
  return server
 
@@ -423,7 +427,7 @@ def apply(c,body):
     if (CACHE/kind).exists():removal.validate_paths([CACHE/kind]);shutil.rmtree(CACHE/kind)
     (CACHE/(kind+'.json')).unlink(missing_ok=True)
    (STATE/(kind+'.json')).unlink()
-   if not apps:withdraw(c,stack)
+   if not apps and not Path('/var/lib/storypulse-security/games/zone-web.json').exists():withdraw(c,stack)
    return dict(ok=True,service=kind,action='uninstall',message=APPS[kind][0]+' eliminado. Servidor web, PHP y bases de datos compartidas conservados.')
   row=c.select(kind,p,body['selection']) if native else select(c,kind,p,body['selection'])
   c.write(STATE/(kind+'.json'),dict(profile=profile(p),version=row['version'],phase='installing',site=str(site)))

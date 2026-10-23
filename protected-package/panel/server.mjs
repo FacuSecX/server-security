@@ -5,6 +5,8 @@ import {createCountryDatabase} from './geo-country.mjs';
 import {createGeoCache} from './geo-cache.mjs';
 import {countryName} from './geo-ip.mjs';
 import {createProfileApi} from './profile-api.mjs';
+import {createZoneApi} from './zone-api.mjs';
+import {createZoneControllerFlow} from './zone-controller-flow.mjs';
 import {createGamesApi} from './games-api.mjs';
 import {createGameFtpVault} from './game-ftp-vault.mjs';
 import {createCloudflareApi} from './cloudflare-api.mjs';
@@ -774,11 +776,14 @@ async function deliverPanelAlerts(){
 const panelAlertDeliveryTimer=setInterval(()=>void deliverPanelAlerts().catch(()=>{}),10000);
 panelAlertDeliveryTimer.unref();
 
+const zoneControllerFlow=createZoneControllerFlow({root:ROOT,runRemote});
 const webappControllerFlow=createWebappControllerFlow({root:ROOT,runRemote});
 async function executeSecurityCtl(command, payload = null) {
+  if(['zone-status','zone-plan','zone-apply','zone-repair','zone-forum-credentials'].includes(command))return zoneControllerFlow.execute(command,payload||{});
   if (!new Set(["status", "list", "block", "unblock", "provider-block", "provider-unblock", "sync", "report-ssh", "report-download", "ports-status", "ports-plan", "ports-apply", "forwarding-status", "forwarding-plan", "forwarding-apply", "services-status", "services-plan", "services-apply", "mysql-status", "mysql-plan", "mysql-apply", "mysql-data", "mysql-structure", "cleanup-status", "cleanup-plan", "cleanup-apply", "system-metrics", "system-plan", "system-reboot", "trusted-status", "trusted-plan", "trusted-apply", "alerts-status", "alerts-configure", "alerts-panel-events", "services-versions", "catalog-status", "catalog-versions", "catalog-plan", "catalog-apply", "games-status", "games-console", "games-plan", "games-apply", "cloudflare-status", "cloudflare-plan", "cloudflare-apply"]).has(command)) {
     throw new Error("Operación remota no permitida");
   }
+  if(['games-plan','games-apply'].includes(command))await zoneControllerFlow.execute('zone-runtime-check',{});
   await webappControllerFlow.ensure(command,payload);
   const usesInput = ["block", "unblock", "provider-block", "provider-unblock", "report-ssh", "report-download", "ports-status", "ports-plan", "ports-apply", "forwarding-status", "forwarding-plan", "forwarding-apply", "services-status", "services-plan", "services-apply", "mysql-status", "mysql-plan", "mysql-apply", "mysql-data", "mysql-structure", "cleanup-status", "cleanup-plan", "cleanup-apply", "system-metrics", "system-plan", "system-reboot", "trusted-status", "trusted-plan", "trusted-apply", "alerts-status", "alerts-configure", "alerts-panel-events", "services-versions", "catalog-status", "catalog-versions", "catalog-plan", "catalog-apply", "games-status", "games-console", "games-plan", "games-apply", "cloudflare-status", "cloudflare-plan", "cloudflare-apply"].includes(command);
   const remote = `sudo -n ${SECURITY_CTL} ${command}${usesInput ? " --json-input" : ""}`;
@@ -1170,7 +1175,7 @@ function publicProviderEvaluation(evaluation, controller = null) {
 function staticFile(request, response) {
   const url = new URL(request.url, "http://localhost");
   const relative = url.pathname === "/" ? "index.html" : url.pathname === "/login" ? "login.html" : decodeURIComponent(url.pathname.slice(1));
-  if (!["cloudflare.js","cloudflare.css","network-traffic.js","network-traffic.css","avatars.js","avatars.css","avatars.svg","games.js","games.css","game-logo-samp.png","service-logo-phpmyadmin.svg","service-logo-wordpress.svg","service-logo-nginx.svg","service-logo-apache.svg","service-logo-php.svg","service-logo-certbot.svg","service-logo-docker.svg","service-logo-postgresql.svg","service-logo-redis.svg","service-logo-fail2ban.svg","service-logo-wireguard.svg","service-logo-postfix.svg","service-logo-mysql.svg","service-logo-ftp.svg","catalog-services.js","catalog-services.css","service-versions.js","panel-users.js","terminal.js","terminal.css","login.html","auth.js","auth.css","index.html","alerts.js","alert-sounds.js","app.js","mysql.js","cleanup.js","personalization.js","command-guard.js","personalization.css","notifications.js","notifications.css","authorized-ips.js","server-info.js","server-info.css","server-eye.svg","styles.css","enhancements.css"].includes(relative)) { response.writeHead(403); response.end(); return; }
+  if (!["zone.js","cloudflare.js","cloudflare.css","network-traffic.js","network-traffic.css","avatars.js","avatars.css","avatars.svg","games.js","games.css","game-logo-samp.png","service-logo-phpmyadmin.svg","service-logo-wordpress.svg","service-logo-nginx.svg","service-logo-apache.svg","service-logo-php.svg","service-logo-certbot.svg","service-logo-docker.svg","service-logo-postgresql.svg","service-logo-redis.svg","service-logo-fail2ban.svg","service-logo-wireguard.svg","service-logo-postfix.svg","service-logo-mysql.svg","service-logo-ftp.svg","catalog-services.js","catalog-services.css","service-versions.js","panel-users.js","terminal.js","terminal.css","login.html","auth.js","auth.css","index.html","alerts.js","alert-sounds.js","app.js","mysql.js","cleanup.js","personalization.js","command-guard.js","personalization.css","notifications.js","notifications.css","authorized-ips.js","server-info.js","server-info.css","server-eye.svg","styles.css","enhancements.css"].includes(relative)) { response.writeHead(403); response.end(); return; }
   const path = join(STATIC_ROOT, relative);
   if (!existsSync(path) || !statSync(path).isFile()) { response.writeHead(404); response.end("No encontrado"); return; }
   const types = { ".html":"text/html; charset=utf-8", ".css":"text/css; charset=utf-8", ".js":"text/javascript; charset=utf-8", ".svg":"image/svg+xml", ".png":"image/png" };
@@ -1332,7 +1337,8 @@ const cloudflareApi=createCloudflareApi({securityCtl,requireActionToken,readJson
 const catalogServicesApi=createCatalogServicesApi({securityCtl,requireActionToken,readJsonBody,sendJson,actionToken:ACTION_TOKEN,authorizeService:checkServiceAccess,otherBusy:()=>servicesPlanning||servicesJob.status==='running'||mysqlApi.busy()||cleanupApi.busy()||systemApi.busy()||serviceVersionsApi.busy(),invalidate:()=>{portsCache=null;forwardingCache=null;},audit:blockAudit});
 const serviceVersionsApi=createServiceVersionsApi({securityCtl,requireActionToken,readJsonBody,sendJson,actionToken:ACTION_TOKEN,otherBusy:()=>servicesPlanning||servicesJob.status==="running"||mysqlApi.busy()||cleanupApi.busy()||systemApi.busy()});
 const gamesApi=createGamesApi({securityCtl,requireActionToken,readJsonBody,sendJson,actionToken:ACTION_TOKEN,authorizeGame:checkGameAccess,auth:panelAuth,hello:windowsHello,ftpVault:createGameFtpVault(config.ssh,{serverId:scope.legacy?'':scope.id}),otherBusy:()=>catalogServicesApi.busy()||servicesPlanning||servicesJob.status==='running'||mysqlApi.busy()||cleanupApi.busy()||systemApi.busy()||serviceVersionsApi.busy(),invalidate:()=>{portsCache=null;forwardingCache=null;},audit:blockAudit});
-function restartSafe(){return !cloudflareApi.busy()&&!gamesApi.busy()&&!catalogServicesApi.busy()&&!serviceVersionsApi.busy()&&!panelAuth.busy()&&!terminalApi.busy()&&!commandGuard.state().busy&&!servicesPlanning&&servicesJob.status!=='running'&&!mysqlApi.busy()&&!cleanupApi.busy()&&!systemApi.busy()&&!['generating','downloading'].includes(sshReportJob.status)&&!portsBusy&&!forwardingBusy;}
+const zoneApi=createZoneApi({auth:panelAuth,hello:windowsHello,runAction:work=>commandGuard.track(work),securityCtl,requireActionToken,readJsonBody,sendJson,actionToken:ACTION_TOKEN,authorizeGame:checkGameAccess,ftpVault:createGameFtpVault(config.ssh,{serverId:scope.legacy?'':scope.id}),otherBusy:()=>gamesApi.busy()||cloudflareApi.busy()||catalogServicesApi.busy()||servicesPlanning||servicesJob.status==='running'||mysqlApi.busy()||cleanupApi.busy()||systemApi.busy()||serviceVersionsApi.busy(),invalidate:()=>{portsCache=null;forwardingCache=null;},audit:blockAudit});
+function restartSafe(){return !zoneApi.busy()&&!cloudflareApi.busy()&&!gamesApi.busy()&&!catalogServicesApi.busy()&&!serviceVersionsApi.busy()&&!panelAuth.busy()&&!terminalApi.busy()&&!commandGuard.state().busy&&!servicesPlanning&&servicesJob.status!=='running'&&!mysqlApi.busy()&&!cleanupApi.busy()&&!systemApi.busy()&&!['generating','downloading'].includes(sshReportJob.status)&&!portsBusy&&!forwardingBusy;}
 const server = http.createServer(async (request, response) => {
   setSecurityHeaders(response);
   if (!localRequestAllowed(request, listenPort)) {
@@ -1387,6 +1393,7 @@ const server = http.createServer(async (request, response) => {
     if(await systemApi.handle(request,response,url))return;
     if(request.method==="POST"&&systemApi.busy()){sendJson(response,409,{error:"El servidor está reiniciándose. Esperá a que se reconecte."});return;}
     if(await cleanupApi.handle(request,response,url))return;
+    if(await zoneApi.handle(request,response,url))return;
     if(await gamesApi.handle(request,response,url))return;
     if(await cloudflareApi.handle(request,response,url))return;
     if(await catalogServicesApi.handle(request,response,url))return;

@@ -8,6 +8,8 @@
  function hideFtp(){clearTimeout(ftpHideTimer);ftpVisible=false;byId('gameFtpPassword').type='password';byId('gameFtpPassword').value='••••••••••••';byId('gameFtpReveal').setAttribute('aria-pressed','false');byId('gameFtpReveal').title=byId('gameFtpReveal').ariaLabel='Mostrar contraseña con Windows Hello';}
  const elem=(tag,text,className)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;};
  const may=action=>window.PanelAccess?.can(action==='install'?'games-install':action==='uninstall'?'games-remove':'games-manage')===true;
+ const removalEdition=plan=>(plan?.edition||snapshot?.edition)==='zone'?'SA-MP GM Zone':'SA-MP clásico';
+ const cleanupValid=cleanup=>cleanup&&Array.isArray(cleanup.remove)&&cleanup.remove.length>0&&Array.isArray(cleanup.preserve)&&[...cleanup.remove,...cleanup.preserve].every(item=>typeof item==='string'&&item.trim().length>0);
  function message(text,error=false){byId('gamesDialogStatus').textContent=text;byId('gamesDialogStatus').classList.toggle('auth-error',error);}
  function assets(id,kind,selected=[]){
   const available=new Map((snapshot?.[kind]||[]).map(item=>[item.name,item]));
@@ -18,7 +20,8 @@
  const selection=id=>Array.from(byId(id).querySelectorAll('input:checked'),input=>input.value);
  async function json(url,options){const response=await fetch(url,{...options,signal:options?.signal||AbortSignal.timeout(15000)}),data=await response.json();if(data.action_token)state.actionToken=data.action_token;if(!response.ok)throw new Error(data.error||'No se pudo consultar el servidor.');return data;}
  function card(remove){
-  const node=elem('article',undefined,'panel catalog-card'),heading=elem('div',undefined,'catalog-card-heading'),logo=elem('img');logo.src='/game-logo-samp.png';logo.alt='SA-MP';logo.className='catalog-logo';heading.append(logo,elem('h3','San Andreas Multiplayer'));node.append(heading,elem('span','Juego · UDP','panel-tag'),elem('p','SA-MP clásico con su gamemode inicial, arranque automático y consola en vivo.'));
+  const zone=remove&&snapshot?.edition==='zone';
+  const node=elem('article',undefined,'panel catalog-card'),heading=elem('div',undefined,'catalog-card-heading'),logo=elem('img');logo.src='/game-logo-samp.png';logo.alt='SA-MP';logo.className='catalog-logo';heading.append(logo,elem('h3',remove?removalEdition():'San Andreas Multiplayer'));node.append(heading,elem('span',zone?'Juego + web + base de datos':'Juego · UDP','panel-tag'),elem('p',zone?'Instalación Zone con su GM, web, base de datos y acceso FTP. Revisá qué se eliminará antes de confirmar.':'SA-MP clásico con su gamemode inicial, arranque automático y consola en vivo.'));
   const incomplete=snapshot?.installed&&snapshot.phase!=='ready';
   const status=elem('p',incomplete?'Instalación incompleta · Requiere revisión':snapshot?.installed?'Instalado · '+snapshot.version+(snapshot.active?' · Encendido':' · Apagado'):snapshot?'No instalado':'Consultando…','catalog-state');status.classList.toggle('status-warning',!!snapshot&&(!snapshot.installed||incomplete));node.append(status);
   if(incomplete)node.append(elem('p','Podés eliminar esta instalación desde Eliminar juegos y volver a instalarla.','games-warning'));
@@ -31,7 +34,7 @@
   const status=byId('gamesManageStatus'),ready=snapshot?.installed&&snapshot.phase==='ready';
   status.replaceChildren();if(ready){const dot=elem('span',undefined,'games-state-dot');dot.setAttribute('aria-hidden','true');status.append(dot);}status.append(document.createTextNode(snapshot?.installed?(snapshot.phase!=='ready'?'La instalación no pudo completarse. Revisá la consola o eliminá los archivos para reinstalar.':snapshot.active?'Estado: Encendido':'Estado: Apagado'):'SA-MP no está instalado.'));status.dataset.active=String(ready&&snapshot.active);
   byId('gamesManageStatus').classList.toggle('auth-error',!snapshot?.installed||snapshot?.phase!=='ready');
-  byId('gameInstalledVersion').textContent=snapshot?.version?'SA-MP '+snapshot.version:'Servidor de juego';
+  byId('gameInstalledVersion').textContent=snapshot?.version?(snapshot.edition==='zone'?'SA-MP GM Zone · ':'SA-MP ')+snapshot.version:'Servidor de juego';
   byId('gameManagement').hidden=!snapshot?.installed;
   byId('gameResources').textContent=snapshot?.memory_bytes!=null?'RAM: '+(snapshot.memory_bytes/1048576).toFixed(1)+' MB':'';
   const power=byId('gamePower');power.dataset.gameAction=snapshot?.active?'stop':'start';power.dataset.active=String(!!snapshot?.active);power.title=power.ariaLabel=snapshot?.active?'Apagar servidor':'Encender servidor';power.setAttribute('aria-pressed',String(!!snapshot?.active));
@@ -55,13 +58,21 @@
   if(loading)return loading;if(!force&&Date.now()-last<3000)return Promise.resolve();
   loading=(async()=>{try{const data=await json('/api/games');if(data.game){snapshot=data;last=Date.now();render(updateConfig);}if(data.job?.status==='running')for(const id of ['gamesInstallStatus','gamesRemoveStatus','gamesManageStatus'])byId(id).textContent=data.job.message;}catch(error){for(const id of ['gamesInstallStatus','gamesRemoveStatus','gamesManageStatus']){byId(id).textContent=error.message;byId(id).classList.add('auth-error');}}finally{loading=null;}})();return loading;
  }
- function setBusy(busy){byId('gamesReview').disabled=busy;byId('gamesRestartAck').disabled=busy;byId('gamesConfirm').disabled=busy||!review||(request?.action==='uninstall'&&!byId('gamesErase').checked)||(request?.action==='configure'&&!byId('gamesRestartAck').checked);}
+ function setBusy(busy){byId('gamesReview').disabled=busy;byId('gamesRestartAck').disabled=busy;byId('gamesErase').disabled=busy;byId('gamesConfirm').disabled=busy||!review||(request?.action==='uninstall'&&(!byId('gamesErase').checked||!cleanupValid(review.cleanup)))||(request?.action==='configure'&&!byId('gamesRestartAck').checked);}
  function showReview(plan){
   review=plan;byId('gameInstallForm').hidden=true;byId('gamesReview').hidden=true;byId('gamesConfirm').hidden=false;byId('gamesPlanDetails').hidden=false;byId('gamesEraseLabel').hidden=request.action!=='uninstall';
   byId('gamesRestartLabel').hidden=request.action!=='configure';byId('gamesConfirm').textContent=request.action==='configure'?'Confirmar cambios y reinicio':'Confirmar';
   const details=byId('gamesPlanDetails');details.replaceChildren();
-  for(const [label,value] of [['Sistema',plan.distribution],['Juego','SA-MP '+plan.version],['Carpeta',plan.directory],['Puerto',plan.settings?.port+'/UDP'],['Nombre',plan.settings?.hostname],['Gamemode',plan.settings?.gamemode],['Filterscripts',plan.settings?.filterscripts?.join(', ')],['Plugins',plan.settings?.plugins?.join(', ')],['Usuario FTP',request.ftp?.enabled?request.ftp.username:null],['Puertos FTP',request.ftp?.enabled?'21/TCP · 50000–50019/TCP · TLS obligatorio':null],['Dependencias',request.action==='install'?plan.packages?.join(', '):null],['Aviso',plan.warning]])if(value)details.append(elem('dt',label),elem('dd',value));
-  message('Revisá los detalles antes de confirmar.',request.action==='uninstall');setBusy(false);
+  for(const [label,value] of [['Sistema',plan.distribution],['Juego',request.action==='uninstall'?removalEdition(plan)+(plan.version?' · '+plan.version:''):'SA-MP '+plan.version],['Carpeta',plan.directory],['Puerto',plan.settings?.port+'/UDP'],['Nombre',plan.settings?.hostname],['Gamemode',plan.settings?.gamemode],['Filterscripts',plan.settings?.filterscripts?.join(', ')],['Plugins',plan.settings?.plugins?.join(', ')],['Usuario FTP',request.ftp?.enabled?request.ftp.username:null],['Puertos FTP',request.ftp?.enabled?'21/TCP · 50000–50019/TCP · TLS obligatorio':null],['Dependencias',request.action==='install'?plan.packages?.join(', '):null],['Aviso',plan.warning]])if(value)details.append(elem('dt',label),elem('dd',value));
+  if(request.action==='uninstall'){
+   const cleanup=plan.cleanup,valid=cleanupValid(cleanup);
+   if(valid){
+    for(const [label,items] of [['Se eliminará permanentemente',cleanup.remove],['Se conservará',cleanup.preserve]]){const value=elem('dd'),list=elem('ul');for(const item of items)list.append(elem('li',item));if(!items.length)list.append(elem('li','No se informó ningún elemento adicional.'));value.append(list);details.append(elem('dt',label),value);}
+    const zone=(plan.edition||snapshot?.edition)==='zone',database=cleanup.remove.some(item=>/\bbase(?:s)?\b/i.test(item));
+    byId('gamesEraseText').textContent='Confirmo la eliminación permanente de todos los datos indicados en «Se eliminará»'+(zone&&database?', incluidas la base de datos de Zone y las cuentas de jugadores':'')+'. Se conservarán los servicios y elementos indicados en «Se conservará».';
+   }
+   message(valid?'Revisá todo lo que se eliminará. Esta operación es permanente.':'El controlador no informó un alcance de eliminación completo. Actualizá el estado y volvé a revisar.',true);
+  }else message('Revisá los detalles antes de confirmar.');setBusy(false);
  }
  async function poll(epoch=dialogEpoch){
   if(!dialog.open||epoch!==dialogEpoch)return;
@@ -80,7 +91,7 @@
  function open(action,settings){
   if(dialog.open||!may(action))return;dialogEpoch++;request={game:'samp',action,...(settings?{settings}:{}),...(action==='uninstall'?{erase_data:true}:{})};review=null;jobId='';
   byId('gamesRestartWarning').hidden=action!=='configure';byId('gamesRestartLabel').hidden=true;byId('gamesRestartAck').checked=false;byId('gamesConfirm').textContent='Confirmar';
-  byId('gamesDialogTitle').textContent=({install:'Instalar',uninstall:'Eliminar',configure:'Configurar',start:'Encender',stop:'Apagar',restart:'Reiniciar'})[action]+' SA-MP';
+  byId('gamesDialogTitle').textContent=({install:'Instalar',uninstall:'Eliminar',configure:'Configurar',start:'Encender',stop:'Apagar',restart:'Reiniciar'})[action]+' '+(action==='uninstall'?removalEdition():'SA-MP');
   byId('gameInstallForm').hidden=action!=='install';byId('gamesReview').hidden=action!=='install';byId('gamesConfirm').hidden=true;byId('gamesPlanDetails').hidden=true;byId('gamesEraseLabel').hidden=true;byId('gamesErase').checked=false;byId('gamesConfirm').className=action==='uninstall'?'danger-button':'primary-button';message('');setBusy(false);dialog.showModal();
   if(action!=='install')void start('plan',request);
  }

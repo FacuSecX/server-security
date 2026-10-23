@@ -217,7 +217,7 @@ def remove_path(path):
     elif path.exists():path.unlink()
 
 
-def apply(kind,module,payload,repair_monitor):
+def apply(kind,module,payload,repair_monitor,*,firewall_locked=False):
     with package_lock():
         proposal=plan(kind,module,payload,True)
         if proposal['revision']!=payload['revision']:raise RemovalError('El servicio cambió desde la vista previa. Revisá nuevamente antes de eliminarlo.')
@@ -226,8 +226,9 @@ def apply(kind,module,payload,repair_monitor):
         if module.distribution()['family']=='apt' and command and command[2:]!=proposal['packages']:
             raise RemovalError('Cambió el alcance de la desinstalación. Revisá nuevamente antes de continuar.')
         import fcntl
-        with FIREWALL_LOCK.open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX)
+        # The fixed game controller already holds this same firewall lock.
+        with (contextlib.nullcontext() if firewall_locked else FIREWALL_LOCK.open('a')) as lock:
+            if not firewall_locked:fcntl.flock(lock,fcntl.LOCK_EX)
             for rule in sorted(owned_rules(module,definition),key=lambda r:r['number'],reverse=True):run(['ufw','--force','delete',str(rule['number'])])
             repair_monitor(4)
         if run(['systemctl','is-active',definition['service']],check=False).stdout.strip() in ('active','activating','reloading'):

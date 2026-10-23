@@ -2,12 +2,12 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import {performance} from 'node:perf_hooks';
 import {isIP} from 'node:net';
 
-const protectedPaths=new Set(['/api/cloudflare/plan','/api/cloudflare/apply','/api/games/plan','/api/games/apply','/api/games/ftp/reveal','/api/catalog-services/versions','/api/catalog-services/plan','/api/catalog-services/apply','/api/service-versions','/api/ports/plan','/api/ports/apply','/api/forwarding/plan','/api/forwarding/apply',
+const protectedPaths=new Set(['/api/games/zone/plan','/api/games/zone/apply','/api/games/zone/repair','/api/games/zone/forum-credentials','/api/cloudflare/plan','/api/cloudflare/apply','/api/games/plan','/api/games/apply','/api/games/ftp/reveal','/api/catalog-services/versions','/api/catalog-services/plan','/api/catalog-services/apply','/api/service-versions','/api/ports/plan','/api/ports/apply','/api/forwarding/plan','/api/forwarding/apply',
   '/api/services/plan','/api/services/apply','/api/mysql/plan','/api/mysql/apply','/api/mysql/structure','/api/mysql/login','/api/mysql/data',
   '/api/cleanup/plan','/api/cleanup/apply','/api/server/reboot/plan','/api/server/reboot',
   '/api/authorized-ips/plan','/api/authorized-ips/apply','/api/blocks/ip','/api/blocks/provider','/api/providers/evaluate',
   '/api/reports/ssh','/api/refresh','/api/alerts/configure','/api/terminal/execute']);
-const readCommands=new Set(['cloudflare-status','status','list','ports-status','forwarding-status','services-status','mysql-status','catalog-status','games-status','games-console',
+const readCommands=new Set(['zone-status','cloudflare-status','status','list','ports-status','forwarding-status','services-status','mysql-status','catalog-status','games-status','games-console',
   'cleanup-status','system-metrics','trusted-status','alerts-status']);
 
 // One administrative operation across all routes/windows. No administrative queue.

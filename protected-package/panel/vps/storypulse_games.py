@@ -333,6 +333,7 @@ def status(body):
             result['gamemodes'] = sorted(p.stem for p in directory.glob('*.amx') if re.fullmatch(r'[A-Za-z0-9_-]{1,48}', p.stem) and not p.is_symlink() and p.is_file())[:100]
         for kind in ('filterscripts', 'plugins'): result[kind] = asset_inventory(kind)
         if result['settings']: result['players'] = player_stats(result['settings'], result['active'], record, result.get('started_at'))
+    result['edition'] = (record or {}).get('edition', '')
     return result
 
 
@@ -393,19 +394,24 @@ def plan(body):
                 if any(name not in available for name in settings[kind]):
                     raise GameError('Hay '+kind+' seleccionados que faltan o no son compatibles. Revisá la selección.')
         port_check(settings['port'], record, row['settings'] or {})
-    identity = dict(request=request, distribution=row['distribution'], architecture=row['architecture'],
+    cleanup=None
+    if action=='uninstall':
+        import storypulse_game_cleanup
+        cleanup=storypulse_game_cleanup.snapshot(record)
+    identity = dict(cleanup=cleanup,request=request, distribution=row['distribution'], architecture=row['architecture'],
         record=record, config=hashlib.sha256((BASE/'server.cfg').read_bytes()).hexdigest() if record and (BASE/'server.cfg').exists() else None,ftp_revision=ftp_revision)
     revision = hashlib.sha256(json.dumps(identity, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
     settings = request.get('settings') or row['settings'] or DEFAULT
     warning = 'Se borrarán el juego, sus gamemodes, scriptfiles y registros. Se conservan las bibliotecas compartidas del sistema.' if action == 'uninstall' else 'Se abrirá '+str(settings['port'])+'/UDP; no se necesita TCP. Se conservan las reglas y servicios ajenos.'
+    if record and record.get('edition') == 'zone' and action == 'uninstall': warning += ' También se borran la web y foro Zone, su base completa de jugadores y su usuario MySQL. Los servicios exclusivos se retiran según el alcance mostrado.'
     if action == 'configure': warning += ' Si el juego está encendido, se reiniciará para aplicar la configuración.'
     if action=='install' and request.get('ftp',{}).get('enabled'):
         warning += ' Se creará un usuario FTPS exclusivo, encerrado en la carpeta SA-MP. Se abrirán 21/TCP y 50000–50019/TCP para las transferencias. Su contraseña se guardará cifrada en este panel y sólo se mostrará con Windows Hello.'
         row['packages']=list(dict.fromkeys(row['packages']+platform.ftp_packages(platform.detect())))
-    if action=='uninstall' and record.get('ftp'):warning += ' Se revocará la cuenta FTP del juego; el servicio FTP compartido y sus otras cuentas se conservan.'
+    if action=='uninstall' and record.get('ftp'):warning += ' Se revocará la cuenta FTP del juego. El alcance indica si su servicio es exclusivo o compartido.'
     if row['architecture'] and platform.detect()['family'] == 'arch' and action == 'install': warning += ' Arch requiere sincronizar y actualizar el sistema para evitar una actualización parcial.'
     return dict(ok=True, game='samp', action=action, version=VERSION, distribution=row['distribution'], packages=row['packages'],
-        settings=settings, warning=warning, revision=revision, directory=str(BASE), request=request)
+        settings=settings, warning=warning, revision=revision, directory=str(BASE), request=request,edition=record.get('edition','classic') if record else 'classic',cleanup={key:cleanup[key] for key in ('remove','preserve')} if cleanup else None)
 
 
 def ensure_stats_script():
@@ -586,13 +592,15 @@ def start_game():
 
 
 def install(request):
+    import storypulse_game_cleanup as cleanup
+    dependency_before=cleanup.capture_dependency_inventory()
     profile = platform.detect(); packages = runtime_packages(profile)
     with removal.package_lock(): platform.install_packages(run, profile, packages)
     data = download()
     removal.safe_path(BASE); BASE.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
     run(['useradd', '--system', '--user-group', '--no-create-home', '--home-dir', str(BASE), '--shell', '/usr/sbin/nologin', USER])
     account = pwd.getpwnam(USER)
-    record = dict(game='samp', version=VERSION, uid=account.pw_uid, gid=account.pw_gid, owned_ports=[], phase='installing')
+    record = dict(game='samp', version=VERSION, uid=account.pw_uid, gid=account.pw_gid, owned_ports=[], phase='installing',dependency_baseline=dependency_before)
     try: write_json(STATE, record)
     except Exception:
         run(['userdel', USER], check=False)
@@ -609,6 +617,7 @@ def install(request):
         run(['systemctl', 'enable', SERVICE]); start_game()
         if request.get('ftp',{}).get('enabled'):
             game_ftp.create(request['ftp'],request['ftp_secret'],record,lambda:write_json(STATE,record))
+        record['dependencies']=cleanup.finish_provenance(dependency_before)
         record['phase'] = 'ready'; write_json(STATE, record)
     except Exception:
         if record.get('ftp'):
@@ -621,12 +630,23 @@ def install(request):
     return 'SA-MP '+VERSION+' instalado y encendido. Puerto '+str(request['settings']['port'])+'/UDP habilitado.'+(' Cuenta FTP aislada creada; 21/TCP y 50000–50019/TCP habilitados.' if record.get('ftp') else '')
 
 
-def uninstall(record):
+def uninstall(record,erase_all=False):
+    reviewed=None;dependency_result=None
+    if erase_all:
+        import storypulse_game_cleanup as cleanup
+        reviewed=cleanup.snapshot(record)
     paths = [BASE, UNIT, ROTATE]
     removal.validate_paths(paths)
     run(['systemctl', 'disable', '--now', SERVICE], check=False)
     if unit_state()['active']: raise GameError('No se pudo detener el juego. No se borró su instalación.')
+    if record.get('edition') == 'zone':
+        import storypulse_zone
+        if erase_all:cleanup.stop_zone_web(record)
+        else:storypulse_zone.withdraw(record)
     game_ftp.remove(record)
+    if erase_all:
+        cleanup.remove_data(record)
+        dependency_result=cleanup.finish(record,reviewed)
     close_owned_ports(record)
     for path in paths:
         if path.is_dir(): shutil.rmtree(path)
@@ -636,7 +656,12 @@ def uninstall(record):
         account = pwd.getpwnam(USER)
         if account.pw_uid == record['uid']: run(['userdel', USER])
     except KeyError: pass
+    if erase_all:cleanup.complete(record)
     STATE.unlink()
+    if erase_all:
+        message='SA-MP GM Zone eliminado con su web, foro, base y usuario MySQL, cuenta FTP y recursos exclusivos revisados.' if record.get('edition')=='zone' else 'SA-MP eliminado con sus archivos, cuenta FTP y servicios exclusivos revisados.'
+        preserved=(dependency_result or {}).get('preserve',[])
+        return message+(' Se conservaron: '+' '.join(preserved) if preserved else '')
     return 'SA-MP eliminado. Se retiraron sus archivos y sus propias reglas UDP; se conservaron las bibliotecas compartidas.'
 
 
@@ -649,7 +674,7 @@ def apply(body):
     record = checked_record(); action = request['action']
     try:
         if action == 'install': message = install(request)
-        elif action == 'uninstall': message = uninstall(record)
+        elif action == 'uninstall': message = uninstall(record,erase_all=True)
         elif action == 'configure':
             config = read_config(); old_settings = settings_from_config(config); active = unit_state()['active']
             if request['settings'] == old_settings:
