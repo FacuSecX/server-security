@@ -60,9 +60,9 @@ El proyecto busca:
 
 ## 🐧 Compatibilidad
 
-**Las pruebas realizadas corresponden a Debian 12 y Debian 13.** Otras distribuciones pueden presentar errores de instalación o funcionamiento y todavía requieren validación completa.
+**Las pruebas realizadas corresponden a Debian 12, Debian 13 y Ubuntu 26.04 LTS.** Otras distribuciones y versiones pueden presentar errores de instalación o funcionamiento y todavía requieren validación completa.
 
-En próximas actualizaciones ampliaremos las pruebas y la compatibilidad con más distribuciones, incluidas **Ubuntu y CentOS Stream**.
+En próximas actualizaciones ampliaremos las pruebas y mejoraremos la compatibilidad con más distribuciones y versiones, incluyendo **CentOS Stream**.
 
 ## 📋 Requisitos
 
@@ -153,9 +153,9 @@ El servicio de alertas funciona en Linux y puede continuar aunque cierres el pan
 
 ## ⚠️ Limitaciones
 
-Actualmente, el panel está probado en **Debian 12 y Debian 13**. Las demás distribuciones todavía no se han verificado y pueden presentar errores durante la instalación o el funcionamiento de algunos módulos.
+Actualmente, el panel está probado en **Debian 12, Debian 13 y Ubuntu 26.04 LTS**. Otras distribuciones y versiones todavía requieren validación y pueden presentar errores durante la instalación o el funcionamiento de algunos módulos.
 
-La compatibilidad completa con otras distribuciones aún no está garantizada. En futuras actualizaciones ampliaremos las pruebas y mejoraremos la compatibilidad, incluyendo **Ubuntu y CentOS Stream**.
+En futuras actualizaciones ampliaremos las pruebas y mejoraremos la compatibilidad con más distribuciones y versiones, incluido **CentOS Stream**.
 
 ## 💡 Beneficios de un VPS frente a un web hosting
 
