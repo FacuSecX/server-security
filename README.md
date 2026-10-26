@@ -13,7 +13,7 @@ https://github.com/FacuSecX/
 
 <p align="center">
   <a href="https://github.com/FacuSecX"><img alt="Autor: FacuSecX" src="https://img.shields.io/badge/Autor-FacuSecX-blue?style=for-the-badge&logo=github"></a>
-  <img alt="Versión 3.0" src="https://img.shields.io/badge/Version-3.0-8b5cf6?style=for-the-badge">
+  <img alt="Versión 3.0" src="https://img.shields.io/badge/Version-3.2-8b5cf6?style=for-the-badge">
   <img alt="Servidor Linux" src="https://img.shields.io/badge/Servidor-Linux-orange?style=for-the-badge&logo=linux">
   <img alt="Panel local para Windows" src="https://img.shields.io/badge/Panel-Windows-0078D4?style=for-the-badge">
 </p>
