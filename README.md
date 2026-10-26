@@ -4,10 +4,10 @@ Created by FacuSecX
 https://github.com/FacuSecX/
 -->
 
-<h1 align="center">🛡️ Server Security Monitor v3.0</h1>
+<h1 align="center">🛡️ Server Security Monitor v3.2</h1>
 
 <p align="center">
-<img alt="Resumen de seguridad del servidor" src="https://i.ibb.co/ccHxDrV2/download-1.png" title="Server Security Monitor v3.0">
+<img alt="Resumen de seguridad del servidor" src="https://i.ibb.co/ccHxDrV2/download-1.png" title="Server Security Monitor v3.2">
 </p>
 <br>
 
