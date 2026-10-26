@@ -21,11 +21,14 @@ internal sealed class Broker : IDisposable
     private readonly Func<JsonObject>? runtimeStatus;
     private readonly Action? closeService;
     internal static bool IsDesktopOperation(string op) => op is "runtime-status" or "runtime-disconnect" or "runtime-close";
+    internal static bool IsProfileOperation(string op) => op is "servers-list" or "server-prepare" or "server-commit" or "server-remove";
+    internal static bool IsServerRequestAllowed(bool switching, string? active, string? requested) =>
+        !switching && active is { Length: 32 } && ServerProfiles.ValidId(active) && string.Equals(active, requested, StringComparison.Ordinal);
     internal Broker(Func<JsonObject, CancellationToken, Task<int>>? selectServer = null, Func<CancellationToken, Task>? disconnect = null, Func<JsonObject>? runtimeStatus = null, Action? closeService = null)
     { this.selectServer = selectServer; this.disconnect = disconnect; this.runtimeStatus = runtimeStatus; this.closeService = closeService; }
     private void CheckServer(JsonObject request)
     {
-        if (switching || (request["server"]?.GetValue<string>() ?? "") != (profiles.Active()?["id"]?.GetValue<string>() ?? "")) throw new IOException("La conexión cambió. Volvé a ingresar al panel del servidor seleccionado.");
+        if (!IsServerRequestAllowed(switching, profiles.Active()?["id"]?.GetValue<string>(), request["server"]?.GetValue<string>())) throw new IOException("La conexión cambió. Volvé a ingresar al panel del servidor seleccionado.");
     }
     internal async Task ResetSsh(CancellationToken cancellation)
     {
@@ -73,7 +76,7 @@ internal sealed class Broker : IDisposable
                 timeout.CancelAfter(backend ? TimeSpan.FromMinutes(61) : TimeSpan.FromSeconds(110));
                 _ = Task.Run(async () => { try { var probe = new byte[1]; await pipe.ReadExactlyAsync(probe, cancellation); timeout.Cancel(); } catch (EndOfStreamException) { try { timeout.Cancel(); } catch { } } catch { } }, cancellation);
                 var op = request["op"]?.GetValue<string>() ?? "";
-                bool profileOperation = op is "servers-list" or "server-prepare" or "server-commit";
+                bool profileOperation = IsProfileOperation(op);
                 bool desktopOperation = IsDesktopOperation(op);
                 requestIsProfile = profileOperation || desktopOperation;
                 if (!backend && op is not ("agent-poll" or "agent-sign") && !profileOperation && !desktopOperation) throw new UnauthorizedAccessException("La operación sólo está disponible para el servicio protegido.");
@@ -94,6 +97,15 @@ internal sealed class Broker : IDisposable
                         } finally { serversLock.Release(); }
                         break;
                     case "servers-list": result = profiles.Listing(); break;
+                    case "server-remove":
+                        if (request.Count != 2 || request["id"] is not JsonValue removeValue || !removeValue.TryGetValue<string>(out var removeId)) throw new IOException("La conexión seleccionada no es válida.");
+                        await serversLock.WaitAsync(cancellation);
+                        try {
+                            preparedServer = null;
+                            var removal = new ServerProfileRemoval(profiles, disconnect ?? throw new IOException("El controlador del panel no está disponible."));
+                            result = await removal.Remove(removeId, cancellation);
+                        } finally { serversLock.Release(); }
+                        break;
                     case "server-prepare":
                         await serversLock.WaitAsync(cancellation);
                         try {

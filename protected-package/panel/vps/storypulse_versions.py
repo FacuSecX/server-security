@@ -261,10 +261,11 @@ def upgrade(kind,module,payload):
         backup.mkdir(parents=True,mode=0o700);os.chmod(BACKUPS,0o700);os.chmod(BACKUPS/kind,0o700)
         paths=[module.BASE]+([module.PAM,module.UNIT] if kind=='ftp' else [])
         if kind=='mysql':
+            data_dir=removal.database_directory(module)
             with module.connect() as conn:rows=module.query(conn,'SELECT @@datadir AS directory')
-            if not rows or str(rows[0]['directory']).rstrip('/')!=str(DATA_DIR):raise VersionError('La base usa un almacenamiento ajeno al panel.')
-            paths.extend([DATA_DIR,module.CNF,module.TLS])
-            size=sum(p.stat().st_size for root,dirs,files in os.walk(DATA_DIR,followlinks=False) for p in (Path(root)/name for name in files) if p.is_file() and not p.is_symlink())
+            if not rows or str(rows[0]['directory']).rstrip('/')!=str(data_dir):raise VersionError('La base usa un almacenamiento ajeno al panel.')
+            paths.extend([data_dir,module.CNF,module.TLS])
+            size=sum(p.stat().st_size for root,dirs,files in os.walk(data_dir,followlinks=False) for p in (Path(root)/name for name in files) if p.is_file() and not p.is_symlink())
             if shutil.disk_usage(backup).free<size+512*1024**2:raise VersionError('No hay espacio para el respaldo completo de la base. No se detuvo el servicio.')
         try:
             module.run(['systemctl','stop',module.SERVICE],timeout=180)

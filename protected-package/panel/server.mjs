@@ -779,12 +779,12 @@ panelAlertDeliveryTimer.unref();
 const zoneControllerFlow=createZoneControllerFlow({root:ROOT,runRemote});
 const webappControllerFlow=createWebappControllerFlow({root:ROOT,runRemote});
 async function executeSecurityCtl(command, payload = null) {
+  await webappControllerFlow.ensure(command,payload);
   if(['zone-status','zone-plan','zone-apply','zone-repair','zone-forum-credentials'].includes(command))return zoneControllerFlow.execute(command,payload||{});
   if (!new Set(["status", "list", "block", "unblock", "provider-block", "provider-unblock", "sync", "report-ssh", "report-download", "ports-status", "ports-plan", "ports-apply", "forwarding-status", "forwarding-plan", "forwarding-apply", "services-status", "services-plan", "services-apply", "mysql-status", "mysql-plan", "mysql-apply", "mysql-data", "mysql-structure", "cleanup-status", "cleanup-plan", "cleanup-apply", "system-metrics", "system-plan", "system-reboot", "trusted-status", "trusted-plan", "trusted-apply", "alerts-status", "alerts-configure", "alerts-panel-events", "services-versions", "catalog-status", "catalog-versions", "catalog-plan", "catalog-apply", "games-status", "games-console", "games-plan", "games-apply", "cloudflare-status", "cloudflare-plan", "cloudflare-apply"]).has(command)) {
     throw new Error("Operación remota no permitida");
   }
   if(['games-plan','games-apply'].includes(command))await zoneControllerFlow.execute('zone-runtime-check',{});
-  await webappControllerFlow.ensure(command,payload);
   const usesInput = ["block", "unblock", "provider-block", "provider-unblock", "report-ssh", "report-download", "ports-status", "ports-plan", "ports-apply", "forwarding-status", "forwarding-plan", "forwarding-apply", "services-status", "services-plan", "services-apply", "mysql-status", "mysql-plan", "mysql-apply", "mysql-data", "mysql-structure", "cleanup-status", "cleanup-plan", "cleanup-apply", "system-metrics", "system-plan", "system-reboot", "trusted-status", "trusted-plan", "trusted-apply", "alerts-status", "alerts-configure", "alerts-panel-events", "services-versions", "catalog-status", "catalog-versions", "catalog-plan", "catalog-apply", "games-status", "games-console", "games-plan", "games-apply", "cloudflare-status", "cloudflare-plan", "cloudflare-apply"].includes(command);
   const remote = `sudo -n ${SECURITY_CTL} ${command}${usesInput ? " --json-input" : ""}`;
   try {

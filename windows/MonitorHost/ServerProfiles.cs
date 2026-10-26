@@ -73,6 +73,16 @@ internal sealed class ServerProfiles
         if (index < 0) rows.Add(profile.DeepClone()); else rows[index] = profile.DeepClone();
         store["active"] = id; return store;
     }
+    internal JsonObject Without(string id)
+    {
+        if (id is not { Length: 32 } || !ValidId(id)) throw new IOException("Identidad de servidor no válida.");
+        var store = Load().DeepClone().AsObject(); var rows = store["profiles"]!.AsArray();
+        int index = rows.ToList().FindIndex(row => row!["id"]!.GetValue<string>() == id);
+        if (index < 0) throw new IOException("No se encontró la conexión seleccionada.");
+        rows.RemoveAt(index);
+        if (store["active"]!.GetValue<string>() == id) store["active"] = "";
+        return store;
+    }
     internal void MigrateLegacy()
     {
         if (read() != null) { Load(); return; }

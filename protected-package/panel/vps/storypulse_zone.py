@@ -97,7 +97,7 @@ def settings(value):return dict(game.DEFAULT,hostname=value['name']+' Zone Rolep
 def status(body):
  if body!={}:raise ZoneError('La consulta no acepta parámetros.')
  row=game.status({});p=linux.detect()
- return dict(ok=True,maintenance_revision=maintenance_revision(),forum_installed=(SITE/'foro/Settings.php').is_file(),installed=row['installed'],edition=(game.checked_record() or {}).get('edition',''),conflict=row['conflict'],compatible=p['id']=='debian' and p['version'].split('.')[0] in ('12','13') and row['compatible'],distribution=row['distribution'],architecture=row['architecture'],notice='La instalación Zone se habilita inicialmente para Debian 12/13 x86.',details=(game.read_json(STATE) or {}).get('public',{}))
+ return dict(ok=True,maintenance_revision=maintenance_revision(),forum_installed=(SITE/'foro/Settings.php').is_file(),installed=row['installed'],edition=(game.checked_record() or {}).get('edition',''),conflict=row['conflict'],compatible=((p['id']=='debian' and p['version'].split('.')[0] in ('12','13')) or (p['id']=='ubuntu' and p['version']=='26.04')) and row['compatible'],distribution=row['distribution'],architecture=row['architecture'],notice='La instalación Zone requiere Debian 12/13 o Ubuntu 26.04 en x86.',details=(game.read_json(STATE) or {}).get('public',{}))
 
 def plan(body):
  value=payload(body);row=status({});p=linux.detect()
@@ -109,7 +109,8 @@ def plan(body):
  game.port_check(value['port'],None,{})
  game.game_ftp.preflight(value['ftp_user'])
  if web.own(catalog,'wordpress'):raise ZoneError('La raíz de esta IP ya pertenece a WordPress. Se conserva el sitio existente.')
- web.front(catalog,p,catalog.package_inventory(p))
+ frontend=web.front(catalog,p,catalog.package_inventory(p))
+ if p['id']=='ubuntu' and p['version']=='26.04' and frontend['mode']=='apache':raise ZoneError('GM Zone requiere Nginx para publicar su web en Ubuntu 26.04. Apache se conservó; si no lo necesitás, eliminalo desde el panel antes de instalar Zone.')
  from storypulse_wordpress_db import database_dependencies
  database_dependencies(catalog,p)
  mysql.configure_platform(p)

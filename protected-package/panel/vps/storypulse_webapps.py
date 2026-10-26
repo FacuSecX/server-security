@@ -160,17 +160,23 @@ def apache_front(c,p,ips):
 
 def apache_vhost(stack,apps):
  root=str(BASE/'wordpress') if 'wordpress' in apps else str(CONF/'empty');pma=str(app_site(stack['profile'],'phpmyadmin'))
+ ubuntu26=stack['profile'].get('id')=='ubuntu' and stack['profile'].get('version')=='26.04'
  modules='/usr/lib/apache2/modules/' if '/apache2/' in stack['vhost'] else '/usr/lib64/httpd/modules/' if '/conf.d/' in stack['vhost'] else '/usr/lib/httpd/modules/'
  text=''
- for name in ('proxy','proxy_fcgi','alias','authz_core','dir'):
+ for name in ('proxy','proxy_fcgi','alias','authz_core','dir')+(('mime',) if ubuntu26 else ()):
   text+='<IfModule !'+name+'_module>\nLoadModule '+name+'_module '+modules+'mod_'+name+'.so\n</IfModule>\n'
+ if ubuntu26:text+='TypesConfig /etc/mime.types\n'
  text+='<VirtualHost *:80>\nServerName '+stack['ips'][0]+'\n'
+ if ubuntu26:text+='AddType text/css .css\nAddType application/javascript .js .mjs\n'
  for ip in stack['ips'][1:]:text+='ServerAlias '+ip+'\n'
  text+='DocumentRoot '+root+'\n<Directory '+root+'>\nRequire all granted\nOptions -Indexes -FollowSymLinks\nAllowOverride None\nDirectoryIndex index.php\n'
  if 'wordpress' in apps:text+='FallbackResource /index.php\n'
  text+='</Directory>\n<FilesMatch "\\.php$">\nSetHandler "proxy:unix:'+SOCKET+'|fcgi://localhost/"\n</FilesMatch>\n<FilesMatch "^(?:wp-config|config\\.inc)\\.php$|\\.(?:sql|log|ini|bak|sh)$">\nRequire all denied\n</FilesMatch>\n'
  if 'phpmyadmin' in apps:
-  text+='RedirectMatch ^/phpmyadmin$ /phpmyadmin/\nAlias /phpmyadmin/ '+pma+'/\n<Directory '+pma+'>\nRequire all granted\nOptions -Indexes -FollowSymLinks\nAllowOverride None\nDirectoryIndex index.php\nFallbackResource disabled\n</Directory>\n'
+  # Ubuntu 26 ships CSS/JS links into other root-owned /usr/share packages.
+  # Permit owner-matching links only in the immutable native phpMyAdmin tree.
+  pma_options='-Indexes -FollowSymLinks'+(' +SymLinksIfOwnerMatch' if ubuntu26 else '')
+  text+='RedirectMatch ^/phpmyadmin$ /phpmyadmin/\nAlias /phpmyadmin/ '+pma+'/\n<Directory '+pma+'>\nRequire all granted\nOptions '+pma_options+'\nAllowOverride None\nDirectoryIndex index.php\nFallbackResource disabled\n</Directory>\n'
   text+='<LocationMatch "^/phpmyadmin/(?:setup|test|tests|libraries|vendor|templates|tmp)(?:/|$)">\nRequire all denied\n</LocationMatch>\n'
  text+='<LocationMatch "(?:/\\.|^/wp-content/uploads/.*\\.php$)">\nRequire all denied\n</LocationMatch>\n</VirtualHost>\n'
  return text
@@ -333,7 +339,14 @@ def publish(c,p,stack,apps,frontuser):
   elif stack['mode']=='apache':
    main=Path(stack['main'])
    if stack.get('include_line') and stack['include_line'] not in main.read_text(encoding='utf-8'):text_file(main,main.read_text(encoding='utf-8')+'\n'+stack['include_line']+'\n')
-   c.run([stack['binary'],'-t',*stack.get('apache_args',[])]);c.run(['systemctl','enable','--now',stack['unit']],timeout=90);c.run(['systemctl','reload',stack['unit']],timeout=60)
+   c.run([stack['binary'],'-t',*stack.get('apache_args',[])])
+   if p.get('id')=='ubuntu' and p.get('version')=='26.04':
+    c.run(['systemctl','enable',stack['unit']],timeout=90)
+    active=c.run(['systemctl','is-active',stack['unit']],check=False).stdout.strip()=='active'
+    if not active:c.run(['systemctl','reset-failed',stack['unit']],check=False)
+    c.run(['systemctl','reload' if active else 'start',stack['unit']],timeout=90)
+    flow.wait_service(c.run,stack['unit'])
+   else:c.run(['systemctl','enable','--now',stack['unit']],timeout=90);c.run(['systemctl','reload',stack['unit']],timeout=60)
   else:
    nginx='/usr/bin/nginx' if p['family']=='arch' else '/usr/sbin/nginx'
    flow.runtime_directory('server-monitor-webnginx')

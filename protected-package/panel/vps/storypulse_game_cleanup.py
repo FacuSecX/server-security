@@ -428,7 +428,7 @@ def _dependency_service_scope(m,kind):
   if repo.exists() and ('https://repo.mysql.com/apt/debian/' not in repo.read_text() or 'signed-by=/usr/share/keyrings/storypulse-mysql.gpg' not in repo.read_text()):raise RuntimeError('El repositorio MySQL contiene cambios externos.')
   if config['installed'] and module.active()=='active':
    with module.connect() as conn:rows=module.query(conn,'SELECT @@datadir AS directory')
-   if not rows or str(rows[0]['directory']).rstrip('/')!='/var/lib/mysql':raise RuntimeError('MySQL usa un directorio de datos externo.')
+   if not rows or str(rows[0]['directory']).rstrip('/')!=str(m.removal.database_directory(namespace)):raise RuntimeError('MySQL usa un directorio de datos externo.')
  return dict(paths=[str(path) for path in definition['paths']])
 
 

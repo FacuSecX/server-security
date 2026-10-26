@@ -43,27 +43,52 @@ internal static class ServerPicker
         var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
         var connect = new Button { Text = "Conectar con Windows Hello", AutoSize = true, Enabled = false };
         var add = new Button { Text = "Nueva conexión", AutoSize = true, Enabled = false };
+        var remove = new Button { Text = "Eliminar conexión", AutoSize = true, Enabled = false };
         var cancel = new Button { Text = "Cancelar", AutoSize = true };
-        actions.Controls.Add(connect); actions.Controls.Add(add); actions.Controls.Add(cancel);
+        actions.Controls.Add(connect); actions.Controls.Add(add); actions.Controls.Add(remove); actions.Controls.Add(cancel);
         layout.Controls.Add(heading); layout.Controls.Add(content); layout.Controls.Add(note); layout.Controls.Add(status); layout.Controls.Add(actions); form.Controls.Add(layout); form.AcceptButton = connect;
-        bool fresh = false, busy = false; using var lifetime = new CancellationTokenSource();
+        bool fresh = false, busy = false; string activeId = ""; using var lifetime = new CancellationTokenSource();
         form.FormClosing += (_, _) => lifetime.Cancel();
-        void Edit(bool value) { fresh = value; editor.Visible = value; list.Visible = !value; add.Text = value ? "Volver a conexiones" : "Nueva conexión"; heading.Text = value ? "Agregar un servidor" : "Elegí el servidor al que querés conectarte"; connect.Enabled = value || list.SelectedItems.Count == 1; status.Text = ""; }
-        list.SelectedIndexChanged += (_, _) => { if (!busy) connect.Enabled = fresh || list.SelectedItems.Count == 1; };
+        void Edit(bool value) { fresh = value; editor.Visible = value; list.Visible = !value; add.Text = value ? "Volver a conexiones" : "Nueva conexión"; heading.Text = value ? "Agregar un servidor" : "Elegí el servidor al que querés conectarte"; connect.Enabled = value || list.SelectedItems.Count == 1; remove.Visible = !value; remove.Enabled = !value && list.SelectedItems.Count == 1; status.Text = ""; }
+        void SetBusy(bool value) { busy = value; connect.Enabled = !value && (fresh || list.SelectedItems.Count == 1); add.Enabled = !value; remove.Enabled = !value && !fresh && list.SelectedItems.Count == 1; list.Enabled = !value; fields.Enabled = !value; name.Enabled = !value; }
+        void Populate(JsonObject response, int preferredIndex = 0) {
+            activeId = response["active"]!.GetValue<string>();
+            list.BeginUpdate();
+            try {
+                list.Items.Clear();
+                foreach (var row in response["profiles"]!.AsArray().OfType<JsonObject>()) {
+                    var item = new ListViewItem(new[] { row["label"]!.GetValue<string>(), row["host"]!.GetValue<string>() + ":" + row["port"]!.GetValue<int>(), row["user"]!.GetValue<string>() }) { Tag = row["id"]!.GetValue<string>() }; list.Items.Add(item);
+                    if (row["id"]!.GetValue<string>() == activeId) item.Selected = true;
+                }
+                if (list.SelectedItems.Count == 0 && list.Items.Count > 0) list.Items[Math.Min(preferredIndex, list.Items.Count - 1)].Selected = true;
+            } finally { list.EndUpdate(); }
+        }
+        list.SelectedIndexChanged += (_, _) => { if (!busy) { connect.Enabled = fresh || list.SelectedItems.Count == 1; remove.Enabled = !fresh && list.SelectedItems.Count == 1; } };
         list.DoubleClick += (_, _) => { if (connect.Enabled) connect.PerformClick(); };
         add.Click += (_, _) => { if (!busy) Edit(!fresh); }; cancel.Click += (_, _) => form.Close();
         form.Shown += async (_, _) => {
             try {
                 var response = await Wire.Call(new JsonObject { ["op"] = "servers-list" }, lifetime.Token); Check(response);
-                foreach (var row in response["profiles"]!.AsArray().OfType<JsonObject>()) {
-                    var item = new ListViewItem(new[] { row["label"]!.GetValue<string>(), row["host"]!.GetValue<string>() + ":" + row["port"]!.GetValue<int>(), row["user"]!.GetValue<string>() }) { Tag = row["id"]!.GetValue<string>() }; list.Items.Add(item);
-                    if (row["id"]!.GetValue<string>() == response["active"]!.GetValue<string>()) item.Selected = true;
-                }
+                Populate(response);
                 add.Enabled = true; status.Text = ""; if (list.Items.Count == 0) Edit(true);
             } catch (Exception ex) { status.Text = ex is IOException ? ex.Message : "No se pudieron cargar las conexiones. Abrí el panel nuevamente."; }
         };
+        remove.Click += async (_, _) => {
+            if (busy || fresh || list.SelectedItems.Count != 1) return;
+            var selected = list.SelectedItems[0]; string id = selected.Tag!.ToString()!; int index = selected.Index;
+            string message = "¿Querés eliminar la conexión «" + selected.Text + "» de este equipo?\n\nSe conservarán sus estadísticas e historial.";
+            if (id == activeId) message += "\n\nSi está conectada, se cerrará su sesión local.";
+            if (MessageBox.Show(form, message, "Eliminar conexión", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+            SetBusy(true); status.ForeColor = Color.FromArgb(45,100,75); status.Text = "Eliminando la conexión guardada…";
+            try {
+                var response = await Wire.Call(new JsonObject { ["op"] = "server-remove", ["id"] = id }, lifetime.Token); Check(response);
+                if (!form.IsDisposed) { Populate(response, index); if (list.Items.Count == 0) Edit(true); status.Text = "Conexión eliminada. Se conservó su historial."; }
+            } catch (OperationCanceledException) { if (!form.IsDisposed) { status.ForeColor = Color.Firebrick; status.Text = "La eliminación se canceló. Volvé a cargar las conexiones para comprobar su estado."; } }
+            catch (Exception ex) { if (!form.IsDisposed) { status.ForeColor = Color.Firebrick; status.Text = ex is IOException ? ex.Message : "No se pudo eliminar la conexión. Volvé a intentarlo."; } }
+            finally { if (!form.IsDisposed) SetBusy(false); }
+        };
         connect.Click += async (_, _) => {
-            if (busy) return; busy = true; connect.Enabled = false; add.Enabled = false; list.Enabled = false; fields.Enabled = false; name.Enabled = false;
+            if (busy) return; SetBusy(true);
             try {
                 status.ForeColor = Color.FromArgb(45,100,75); status.Text = "Comprobando la conexión y el acceso al panel…";
                 var request = new JsonObject { ["op"] = "server-prepare" };
@@ -84,7 +109,7 @@ internal static class ServerPicker
                 form.Close();
             } catch (OperationCanceledException) { if (!form.IsDisposed) { status.ForeColor = Color.Firebrick; status.Text = "La conexión se canceló o tardó demasiado. Podés volver a intentarlo."; } }
             catch (Exception ex) { if (!form.IsDisposed) { status.ForeColor = Color.Firebrick; status.Text = ex is IOException ? ex.Message : "No se pudo completar la conexión. Se conserva el servidor anterior; verificá los datos e intentá nuevamente."; } }
-            finally { busy = false; if (!form.IsDisposed) { add.Enabled = true; list.Enabled = true; fields.Enabled = true; name.Enabled = true; connect.Enabled = fresh || list.SelectedItems.Count == 1; } }
+            finally { if (!form.IsDisposed) SetBusy(false); }
         };
         Current = form;
         try { if (dialog) form.ShowDialog(); else Application.Run(form); }

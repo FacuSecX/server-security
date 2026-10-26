@@ -46,13 +46,6 @@ internal static class ServiceLifetime
         using var service = new ServiceController(State.ServiceName);
         service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(15));
     }
-    internal static int Probe()
-    {
-        Attach();
-        using var child = Process.Start(new ProcessStartInfo(Environment.ProcessPath!, "job-lifetime-child") { UseShellExecute = false, CreateNoWindow = true }) ?? throw new IOException();
-        Console.WriteLine(child.Id); Console.Out.Flush();
-        return 0;
-    }
     [StructLayout(LayoutKind.Sequential)] private struct BasicLimits { public long ProcessTime, JobTime; public uint Flags; public nuint MinWorkingSet, MaxWorkingSet; public uint ActiveProcesses; public nuint Affinity; public uint Priority, Scheduling; }
     [StructLayout(LayoutKind.Sequential)] private struct IoCounters { public ulong ReadOperations, WriteOperations, OtherOperations, ReadBytes, WriteBytes, OtherBytes; }
     [StructLayout(LayoutKind.Sequential)] private struct ExtendedLimits { public BasicLimits Basic; public IoCounters Io; public nuint ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory; }

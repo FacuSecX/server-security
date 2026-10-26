@@ -85,7 +85,7 @@
   },
   {
     "path": "native\\FacuSecX.MonitorHost.dll",
-    "sha256": "0FA131A02682DFA3DC60A63468971FC6CE1CB7B8A9F7336AF48CE5FCC72B6621"
+    "sha256": "11F01A1EEAD6BC1C029AA3EC4CDBDA8EEC7E413585960B269075C5408E9F19BB"
   },
   {
     "path": "native\\FacuSecX.MonitorHost.exe",
@@ -1361,7 +1361,7 @@
   },
   {
     "path": "panel\\dist\\zone.js",
-    "sha256": "5494C2396DE4122A0BEB680B2B04D775106155DBFE01CE2C48F10A008CC50288"
+    "sha256": "1F710943648DE37F000C15594FD99277C34AFD3E43621E2715551F8CDF4F8997"
   },
   {
     "path": "panel\\game-ftp-vault.mjs",
@@ -1477,7 +1477,7 @@
   },
   {
     "path": "panel\\server.mjs",
-    "sha256": "34F623FC359103E8D9B7FC4F0B79CC7709038E34D1DA78E96F8BC76668F2F04D"
+    "sha256": "75B168EADB8823A11672ACDBC28C2DD46BF84EB80922536AE415676EA0251764"
   },
   {
     "path": "panel\\service-versions-api.mjs",
@@ -1549,7 +1549,7 @@
   },
   {
     "path": "panel\\vps\\storypulse_catalog.py",
-    "sha256": "85C90F3F611A980830D7613BD95B60787EDCA87406951345287E07F4FF3784D0"
+    "sha256": "8C52630EE1F1F61766A3802CC4DA6E4D90CCAB98134B98A11294B259D86EFF6A"
   },
   {
     "path": "panel\\vps\\storypulse_catalog_archives.py",
@@ -1573,7 +1573,7 @@
   },
   {
     "path": "panel\\vps\\storypulse_game_cleanup.py",
-    "sha256": "4D2995DE76318B36E651510036863F397ABC9F0449C990A5F75F9B3DCDCAD8F5"
+    "sha256": "A9C6D2DFD75E7B97975DCF43CCBFA5D7A78FABC3F183F883A850804CC90ADC39"
   },
   {
     "path": "panel\\vps\\storypulse_game_ftp.py",
@@ -1585,7 +1585,7 @@
   },
   {
     "path": "panel\\vps\\storypulse_mysql.py",
-    "sha256": "AC43F649B23D9AFE0527017B5A8E819859F03A3D467A6E1438861D501C2EF9DC"
+    "sha256": "D77811AC24978A3E86A7471AD6C8C349C9366644DD81EA2FE47B8C96CD0B48FD"
   },
   {
     "path": "panel\\vps\\storypulse_panel_alerts.py",
@@ -1593,7 +1593,7 @@
   },
   {
     "path": "panel\\vps\\storypulse_platform.py",
-    "sha256": "DEE12FF6F381738827232B3FB3BD7AAF5598FDDE5764CA041B378C9F14E693F2"
+    "sha256": "400FCD835F5988018F8227A0DACA934F2398412978E0E3170C1FE26194FB0CA5"
   },
   {
     "path": "panel\\vps\\storypulse_ports.py",
@@ -1621,15 +1621,15 @@
   },
   {
     "path": "panel\\vps\\storypulse_uninstall.py",
-    "sha256": "BF83A7C05AA3D64B6A5866A57E9EAB55F0E541D105F025DC78E61991F511544F"
+    "sha256": "B9C9A73BFB223BC51E8AADF6E2F52BC449B54A46F8431A734E6BFAC1AC195CC9"
   },
   {
     "path": "panel\\vps\\storypulse_versions.py",
-    "sha256": "615E21EAA8567BABDB76F06FCA5FEC04B82CFE42A784FFE945349A8BC8653B84"
+    "sha256": "8A252A4649A5272C0CA8407F468FDBFC421C43D4EFBF232A5BC3406A4C6253BD"
   },
   {
     "path": "panel\\vps\\storypulse_webapps.py",
-    "sha256": "D2F4F9DD1DC67AEF88C311C6598E9F25646AE0D477C0C16E6165148CC45710A0"
+    "sha256": "0AEEB98FEEDE8E6D9D7CBEB27DB2463666783A5BAB31962E85FDD963E260B5A0"
   },
   {
     "path": "panel\\vps\\storypulse_wordpress_db.py",
@@ -1637,7 +1637,7 @@
   },
   {
     "path": "panel\\vps\\storypulse_zone.py",
-    "sha256": "3D554250E46EECAAE5EFEF5186D33F74B27C8C566B3066DD8A3DAF5FE25E18B3"
+    "sha256": "FC19A90E2EFF60CAF11508A66C1DCF541BE96FCE57DC6EBC0A778A60C1262F9B"
   },
   {
     "path": "panel\\vps\\storypulse_zone_compat.php",
@@ -1649,11 +1649,11 @@
   },
   {
     "path": "panel\\webapp-controller-flow.mjs",
-    "sha256": "2E1DE1C00D4D52A243F99D9035104D79F9BDA1BC3DB623662EA1DD37E5BB2FD7"
+    "sha256": "DBFF8FE87BBE77DD39E9383A3ED5CEC82F5C9C47443C8DA2D3D85F4E3F9A983C"
   },
   {
     "path": "panel\\webapp-runtime-sync.py",
-    "sha256": "F5B1A1DB00036F616357FA4BD114ED853FD73AD3C3799B2A9E3E454E0D00EA1D"
+    "sha256": "A4B12E090896429C26C4B32BBD2A877FDD19E873ADAE2E12F9551118DB18ABE6"
   },
   {
     "path": "panel\\windows-hello.cs",
@@ -1685,7 +1685,7 @@
   },
   {
     "path": "panel\\zone-runtime-previous.json",
-    "sha256": "CE4D61BDFA3F950C3B9CCA43A891536F01A9A3EDB0F3A0F83B61EB9170A0005D"
+    "sha256": "FFEE2EDBE37B8CD744001A94531FFB802F6447EC3E007B31F4307AD84E856D0B"
   },
   {
     "path": "panel\\zone-runtime.py",

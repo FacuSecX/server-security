@@ -29,20 +29,6 @@ internal static class Program
                 case "rpc":
                     using (var limit = new CancellationTokenSource(TimeSpan.FromSeconds(110)))
                     { var input = Console.In.ReadToEnd(); if (input.Length > 2_000_000) throw new IOException(); var result = Wire.Call(JsonNode.Parse(input)!.AsObject(), limit.Token).GetAwaiter().GetResult(); Console.Out.Write(result.ToJsonString()); return result["ok"]?.GetValue<bool>() == true ? 0 : 1; }
-                case "job-lifetime-probe": return ServiceLifetime.Probe();
-                case "job-lifetime-child": Thread.Sleep(30000); return 0;
-                case "self-test": NativeTests.Run().GetAwaiter().GetResult(); return 0;
-                case "hello-supported": Console.Out.WriteLine(Windows.Security.Credentials.KeyCredentialManager.IsSupportedAsync().AsTask().GetAwaiter().GetResult() ? "available" : "unavailable"); return 0;
-                case "transport-probe":
-                case "setup-probe":
-                    var probeSettings = JsonNode.Parse(Console.In.ReadToEnd())!.AsObject();
-                    if (probeSettings["host"]?.GetValue<string>() != "127.0.0.1") throw new UnauthorizedAccessException();
-                    using (var transport = new SshTransport(() => probeSettings))
-                    using (var probeCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
-                    {
-                        if (args[0] == "setup-probe") { SshSettings.Check(transport, probeCancellation.Token).GetAwaiter().GetResult(); Console.Out.WriteLine("setup connection verified"); return 0; }
-                        var code = transport.Run("cat", "local-probe-input"u8.ToArray(), message => { Console.Out.WriteLine(message.ToJsonString()); return Task.CompletedTask; }, probeCancellation.Token).GetAwaiter().GetResult(); return code;
-                    }
                 case "launch":
                     if (WindowsIdentity.GetCurrent().User?.Value != State.Value("OwnerSid")) throw new UnauthorizedAccessException("Este acceso está vinculado al propietario del panel.");
                     RequireDesktopService(); Branding.Initialize(); HelloAgent.Run(true); return 0;

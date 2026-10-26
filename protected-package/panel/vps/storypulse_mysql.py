@@ -9,7 +9,7 @@ PROFILE=None
 ENGINE="mysql"
 LAYOUT=None
 def configure_platform(profile=None,backend=None):
-    global PROFILE,ENGINE,LAYOUT,CNF,SOCKET,SERVICE
+    global PROFILE,ENGINE,LAYOUT,CNF,SOCKET,SERVICE,DATA_DIR
     PROFILE=profile or linux.detect()
     saved=load()
     # Use the same native engine whether SQL or a dependent web app is installed
@@ -17,6 +17,12 @@ def configure_platform(profile=None,backend=None):
     backend=saved.get("backend") or ("mysql" if saved["installed"] else backend or ('mariadb' if PROFILE['family'] in ('apt','arch') else None))
     LAYOUT=linux.database_layout(PROFILE,backend)
     ENGINE=LAYOUT["backend"];CNF=Path(LAYOUT["cnf"]);SOCKET=LAYOUT["socket"];SERVICE=LAYOUT["service"]
+    DATA_DIR=Path(LAYOUT.get('datadir','/var/lib/mysql'))
+    if LAYOUT.get('datadir'):
+        selected=saved.get('datadir')
+        if selected not in (None,str(DATA_DIR)):raise MysqlError('El almacenamiento MariaDB registrado no corresponde al directorio nativo de Ubuntu 26.04. Se conservó sin migrarlo.')
+        if Path('/var/lib/mysql/mysql').exists():raise MysqlError('Hay tablas MariaDB en el almacenamiento anterior /var/lib/mysql. Se conservaron sin migrarlas; revisá esa instalación antes de continuar.')
+        if DATA_DIR.is_symlink():raise MysqlError('El almacenamiento MariaDB no puede ser un enlace. Se conservó sin modificarlo.')
     return PROFILE
 
 def distribution():return PROFILE or linux.detect()
@@ -27,6 +33,7 @@ TLS=Path('/etc/mysql/storypulse-tls')
 CNF=Path('/etc/mysql/mysql.conf.d/zz-storypulse.cnf')
 SOCKET='/var/run/mysqld/mysqld.sock'
 BACKUPS=Path('/var/lib/storypulse-security/mysql-backups')
+DATA_DIR=Path('/var/lib/mysql')
 SERVICE='mysql.service'
 KEY_FINGERPRINT='BCA43417C3B485DD128EC6D4B7B3B788A8D3785C'
 PRIVILEGES=('SELECT','INSERT','UPDATE','DELETE','CREATE','ALTER','INDEX','DROP','REFERENCES')
@@ -230,7 +237,7 @@ def plan(payload):
         memory=re.search(r'^MemAvailable:\s+(\d+)',Path('/proc/meminfo').read_text(),re.M)
         if not memory or int(memory[1])<512*1024 or shutil.disk_usage('/var').free<2*1024**3:raise MysqlError('La instalación requiere al menos 512 MB de memoria disponible y 2 GB de espacio libre.')
         if config['installed']:raise MysqlError('MySQL ya está instalado.')
-        if not STATE.exists() and (BASE.exists() or Path('/var/lib/mysql/mysql').exists() or any(linux.installed(run,distribution(),p) for p in ('mysql-community-server','mysql-server','mysql8.4-server','mariadb-server','mariadb'))):
+        if not STATE.exists() and (BASE.exists() or (DATA_DIR/'mysql').exists() or any(linux.installed(run,distribution(),p) for p in ('mysql-community-server','mysql-server','mysql8.4-server','mariadb-server','mariadb'))):
             raise MysqlError('Existe una instalación ajena al panel. Se conserva y requiere revisión.')
     else:
         if not config['installed']:raise MysqlError('Instalá primero MySQL desde Instalar servicios.')
@@ -304,6 +311,7 @@ performance_schema=OFF
         if remote:text=text.replace('bind-address='+address,'bind-address=0.0.0.0')
     if connection_audit_available():
         text+='plugin_load_add=server_audit\nserver_audit_events=CONNECT\nserver_audit_output_type=SYSLOG\nserver_audit_syslog_ident=storypulse-db-audit\nserver_audit_logging=ON\n'
+    if (LAYOUT or {}).get('datadir'):text+='datadir='+str(DATA_DIR)+'\n'
     return text+'socket='+SOCKET+'\n' 
 
 def repository():
@@ -328,19 +336,38 @@ def repository():
     run(['apt-get','-o','DPkg::Lock::Timeout=30','update'],timeout=180)
     candidate=run(['apt-cache','policy','mysql-community-server']).stdout
     if not re.search(r'Candidate: (?:8\.4|9\.[0-9]+)\.',candidate):raise MysqlError('No hay un paquete MySQL firmado compatible con la rama instalada.')
+def ubuntu_native_bootstrap():
+    p=distribution()
+    return p.get('id')=='ubuntu' and p.get('version')=='26.04' and ENGINE=='mariadb'
+
+def prepare_data_directory():
+    if not ubuntu_native_bootstrap():return
+    if str(DATA_DIR)!='/var/lib/mariadb':raise MysqlError('El almacenamiento MariaDB no corresponde al directorio nativo de Ubuntu 26.04.')
+    import storypulse_uninstall as remover
+    remover.validate_paths([DATA_DIR])
+    if DATA_DIR.exists() and not DATA_DIR.is_dir():raise MysqlError('El almacenamiento MariaDB no es un directorio. Se conservó sin modificarlo.')
+    # The package's post-install hook takes ownership. Existing data/permissions
+    # are preserved; an existing native directory avoids its legacy fallback.
+    DATA_DIR.mkdir(exist_ok=True,mode=0o750)
+
 def initialize_database():
     import pwd
-    bootstrap=Path('/var/lib/mysql/.storypulse-bootstrap.sql')
+    bootstrap=DATA_DIR/'.storypulse-bootstrap.sql'
     secret=None
     if ENGINE=='mysql' and distribution()['family']=='rpm' and not load()['installed']:
         secret=(BASE/'root-secret').read_text().strip() if (BASE/'root-secret').exists() else secrets.token_urlsafe(40)
         if not re.fullmatch(r'[A-Za-z0-9_-]{40,80}',secret):raise MysqlError('Credencial interna MySQL inválida.')
         atomic(BASE/'root-secret',(secret+'\n').encode())
-    if not Path('/var/lib/mysql/mysql').exists():
+    if not (DATA_DIR/'mysql').exists():
         if ENGINE=='mariadb':
-            run(['mariadb-install-db','--user=mysql','--basedir=/usr','--datadir=/var/lib/mysql','--auth-root-authentication-method=socket'],timeout=120)
+            if ubuntu_native_bootstrap():
+                # Ubuntu's confined daemon cannot change uid/gid from root.
+                # Enter the package's mysql identity before starting bootstrap.
+                run(['runuser','-u','mysql','--','mariadb-install-db','--basedir=/usr','--datadir='+str(DATA_DIR),'--auth-root-authentication-method=socket','--skip-test-db'],timeout=120)
+            else:
+                run(['mariadb-install-db','--user=mysql','--basedir=/usr','--datadir='+str(DATA_DIR),'--auth-root-authentication-method=socket'],timeout=120)
         elif distribution()['family']=='rpm':
-            run(['mysqld','--initialize-insecure','--user=mysql','--datadir=/var/lib/mysql'],timeout=120)
+            run(['mysqld','--initialize-insecure','--user=mysql','--datadir='+str(DATA_DIR)],timeout=120)
     if secret:
         atomic(bootstrap,("ALTER USER 'root'@'localhost' IDENTIFIED BY '"+secret+"';\n").encode(),0o640)
         identity=pwd.getpwnam('mysql');os.chown(bootstrap,0,identity.pw_gid)
@@ -361,7 +388,9 @@ def _install(selection):
     check,_=versions.commands('mysql',module,row);result=run(check,timeout=900,check=False)
     if result.returncode:raise MysqlError('No se pudieron resolver las dependencias SQL: '+(result.stderr or result.stdout)[-1200:])
     BASE.mkdir(parents=True,exist_ok=True,mode=0o700);os.chmod(BASE,0o700)
-    config=load();config['backend']=ENGINE;save(config)
+    config=load();config['backend']=ENGINE
+    if (LAYOUT or {}).get('datadir'):config['datadir']=str(DATA_DIR)
+    save(config)
     run(['systemctl','mask',SERVICE])
     try:return _install_masked(selection)
     finally:run(['systemctl','unmask',SERVICE],check=False)
@@ -370,8 +399,9 @@ def _install_masked(selection):
     if (LAYOUT or linux.database_layout(distribution()))['oracle']:run(['debconf-set-selections'],input='mysql-community-server mysql-community-server/root-pass password\nmysql-community-server mysql-community-server/re-root-pass password\n')
     # Package initialization remains private even before custom TLS is configured.
     CNF.parent.mkdir(parents=True,exist_ok=True)
-    atomic(CNF,('[mysqld]\nbind-address=127.0.0.1\n'+('mysqlx=0\n' if ENGINE=='mysql' else '')).encode(),0o644)
+    atomic(CNF,('[mysqld]\nbind-address=127.0.0.1\n'+('mysqlx=0\n' if ENGINE=='mysql' else '')+('datadir='+str(DATA_DIR)+'\n' if (LAYOUT or {}).get('datadir') else '')).encode(),0o644)
     layout=LAYOUT or linux.database_layout(distribution())
+    prepare_data_directory()
     linux.install_packages(run,distribution(),layout['packages'][1:])
     versions.install_selected('mysql',__import__('types').SimpleNamespace(**globals()),selection)
     initialize_database()
@@ -384,7 +414,7 @@ def _install_masked(selection):
         run(['openssl','req','-x509','-newkey','rsa:3072','-nodes','-days','365','-subj','/CN='+ip,'-addext','subjectAltName=IP:'+ip+',DNS:localhost,IP:127.0.0.1','-keyout',str(tls/'server.key'),'-out',str(tls/'server.crt')],timeout=45)
     os.chown(tls/'server.key',0,mysql.pw_gid);os.chmod(tls/'server.key',0o640);os.chmod(tls/'server.crt',0o644)
     text=server_config()
-    bootstrap=Path('/var/lib/mysql/.storypulse-bootstrap.sql')
+    bootstrap=DATA_DIR/'.storypulse-bootstrap.sql'
     if bootstrap.exists():text+='init_file='+str(bootstrap)+'\n'
     atomic(CNF,text.encode(),0o644)
     linux.database_selinux(run,CNF,TLS)

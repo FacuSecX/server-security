@@ -2,9 +2,12 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 
-const names=['storypulse_webapps.py','storypulse_catalog.py'];
-const actions=new Set(['install','upgrade','start','restart']);
+const names=['storypulse_webapps.py','storypulse_catalog.py','storypulse_mysql.py','storypulse_platform.py','storypulse_versions.py','storypulse_uninstall.py'];
+const actions=new Set(['install','upgrade','start','restart','uninstall']);
 export function needsWebappController(command,payload){
+ if(['mysql-plan','mysql-apply'].includes(command))return true;
+ if(command==='services-versions'&&payload?.service==='mysql')return true;
+ if(['zone-status','zone-plan','zone-apply','zone-repair'].includes(command))return true;
  return ['catalog-plan','catalog-apply'].includes(command)&&['phpmyadmin','wordpress'].includes(payload?.service)&&actions.has(payload?.action);
 }
 export function createWebappControllerFlow({root,runRemote,readFile=readFileSync}){

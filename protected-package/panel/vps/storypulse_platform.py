@@ -74,7 +74,12 @@ def database_layout(profile,backend=None):
     else:
         cnf='/etc/mysql/mysql.conf.d/zz-storypulse.cnf';service='mysql.service';sock='/run/mysqld/mysqld.sock'
         packages=['mysql-community-server' if oracle else 'mysql-server','python3-pymysql','python3-cryptography']
-    return dict(backend=backend,cnf=cnf,service=service,socket=sock,packages=packages,oracle=oracle and backend=='mysql')
+    layout=dict(backend=backend,cnf=cnf,service=service,socket=sock,packages=packages,oracle=oracle and backend=='mysql')
+    # Ubuntu 26.04's MariaDB package initializes and confines this native path.
+    # Keep every existing distribution/backend layout unchanged.
+    if profile['id']=='ubuntu' and profile['version']=='26.04' and backend=='mariadb':
+        layout['datadir']='/var/lib/mariadb'
+    return layout
 
 def selinux_active(run):
     tool=shutil.which('getenforce',path=SAFE_PATH)

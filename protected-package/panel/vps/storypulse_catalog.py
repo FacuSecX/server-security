@@ -407,11 +407,12 @@ def plan(body):
   if body.get('erase_data') is not True or 'selection' in body:raise CatalogError('Confirmá el borrado permanente de sus datos.')
   paths=owned.get('paths',[])
   if not isinstance(paths,list) or any(x not in r['paths'] for x in paths):raise CatalogError('Rutas de instalación inválidas.')
+  paths=removal.service_removal_paths(p,paths)
   removal.validate_paths([Path(x) for x in paths]);inventory=package_inventory(p)
   packages=sorted(x for x in owned.get('packages',[]) if x in inventory)
   command=validate_removal(r,p,packages)
   if p['family']=='apt' and command:packages=command[2:]
-  result.update(packages=packages,paths=paths,version=current,warning='Elimina permanentemente los datos y la configuración propios del servicio. Conserva dependencias compartidas y servicios externos.')
+  result.update(packages=packages,paths=paths,version=current,warning='Elimina permanentemente los datos y la configuración propios del servicio. Conserva dependencias compartidas y servicios externos.'+(' En Ubuntu 26.04 se conservan los registros del sistema bajo /var/log.' if p.get('id')=='ubuntu' and p.get('version')=='26.04' else ''))
  else:
   if 'erase_data' in body:raise CatalogError('Parámetros no permitidos.')
   row=select(kind,p,body.get('selection'));r['package']=row['package']

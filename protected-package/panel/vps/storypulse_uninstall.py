@@ -27,18 +27,34 @@ def package_lock():
         yield
 
 
+def database_directory(module):
+    profile=module.distribution()
+    if profile.get('id')=='ubuntu' and profile.get('version')=='26.04' and getattr(module,'ENGINE','mysql')=='mariadb':
+        return Path('/var/lib/mariadb')
+    return Path('/var/lib/mysql')
+
+
+def service_removal_paths(profile,paths):
+    # Ubuntu 26 uses a syslog-writable /var/log. Keep system logs rather than
+    # weakening safe_path's protection against writable removal ancestors.
+    if profile.get('id')=='ubuntu' and profile.get('version')=='26.04':
+        if any(not Path(p).is_absolute() or '..' in Path(p).parts for p in paths):raise RemovalError('Ruta de desinstalación insegura.')
+        return [p for p in paths if Path('/var/log') not in (Path(p),*Path(p).parents)]
+    return paths
+
+
 def scope(kind,module):
     if kind=='ftp':
         return dict(marker=module.CONFIG,service=module.SERVICE,
-                    paths=[Path('/var/lib/storypulse-security/service-versions/ftp.json'),Path('/var/lib/storypulse-security/service-versions/archives/ftp'),Path('/var/backups/storypulse-service-upgrades/ftp'),module.SPOOL,module.BACKUPS,Path('/var/log/storypulse-ftp'),module.PAM,module.UNIT,
-                           Path('/etc/logrotate.d/storypulse-ftp'),module.BASE],
+                    paths=service_removal_paths(module.distribution(),[Path('/var/lib/storypulse-security/service-versions/ftp.json'),Path('/var/lib/storypulse-security/service-versions/archives/ftp'),Path('/var/backups/storypulse-service-upgrades/ftp'),module.SPOOL,module.BACKUPS,Path('/var/log/storypulse-ftp'),module.PAM,module.UNIT,
+                           Path('/etc/logrotate.d/storypulse-ftp'),module.BASE]),
                     comment='StoryPulse FTP',spans={((21,21),),((50000,50019),)})
     if kind=='mysql':
         return dict(marker=module.STATE,service=module.SERVICE,
-                    paths=[Path('/var/lib/storypulse-security/service-versions/mysql.json'),Path('/var/lib/storypulse-security/service-versions/archives/mysql'),Path('/var/backups/storypulse-service-upgrades/mysql'),Path('/var/lib/mysql'),Path('/var/lib/mysql-files'),Path('/var/log/mysql'),
+                    paths=service_removal_paths(module.distribution(),[Path('/var/lib/storypulse-security/service-versions/mysql.json'),Path('/var/lib/storypulse-security/service-versions/archives/mysql'),Path('/var/backups/storypulse-service-upgrades/mysql'),database_directory(module),Path('/var/lib/mysql-files'),Path('/var/log/mysql'),
                            module.BACKUPS,module.TLS,module.CNF,
                            Path('/etc/apt/sources.list.d/storypulse-mysql.list'),
-                           Path('/usr/share/keyrings/storypulse-mysql.gpg'),module.BASE],
+                           Path('/usr/share/keyrings/storypulse-mysql.gpg'),module.BASE]),
                     comment='StoryPulse MySQL',spans={((3306,3306),)})
     raise RemovalError('Servicio no permitido.')
 
@@ -191,7 +207,7 @@ def plan(kind,module,payload,applying=False):
             raise RemovalError('El repositorio MySQL tiene contenido ajeno al panel.')
         if config['installed'] and module.active()=='active':
             with module.connect() as conn:rows=module.query(conn,'SELECT @@datadir AS directory')
-            if not rows or str(rows[0]['directory']).rstrip('/')!='/var/lib/mysql':
+            if not rows or str(rows[0]['directory']).rstrip('/')!=str(database_directory(module)):
                 raise RemovalError('MySQL utiliza una carpeta de datos no administrada por el panel.')
     packages=package_names(kind,module);command=package_preflight(module,packages)
     if module.distribution()['family']=='apt' and command:packages=command[2:]
@@ -208,7 +224,8 @@ def plan(kind,module,payload,applying=False):
                 databases=len(config.get('databases',[])),firewall_rules=len(rules),
                 notice='BORRADO PERMANENTE: se eliminarán '+detail+'. Se desinstalan los paquetes del servidor y sólo sus reglas de firewall. '
                        'Se incluyen los clientes dependientes y su selector dbconfig-mysql si queda sin usuarios externos. '
-                       'No se puede deshacer. Las dependencias compartidas del sistema y las reglas ajenas se conservan.')
+                       'No se puede deshacer. Las dependencias compartidas del sistema y las reglas ajenas se conservan.'+
+                       (' En Ubuntu 26.04 se conservan los registros del sistema bajo /var/log.' if module.distribution().get('id')=='ubuntu' and module.distribution().get('version')=='26.04' else ''))
 
 
 def remove_path(path):
