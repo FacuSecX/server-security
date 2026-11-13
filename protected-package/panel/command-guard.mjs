@@ -4,11 +4,11 @@ import {isIP} from 'node:net';
 
 const protectedPaths=new Set(['/api/games/zone/plan','/api/games/zone/apply','/api/games/zone/repair','/api/games/zone/forum-credentials','/api/cloudflare/plan','/api/cloudflare/apply','/api/games/plan','/api/games/apply','/api/games/ftp/reveal','/api/catalog-services/versions','/api/catalog-services/plan','/api/catalog-services/apply','/api/service-versions','/api/ports/plan','/api/ports/apply','/api/forwarding/plan','/api/forwarding/apply',
   '/api/services/plan','/api/services/apply','/api/mysql/plan','/api/mysql/apply','/api/mysql/structure','/api/mysql/login','/api/mysql/data',
-  '/api/cleanup/plan','/api/cleanup/apply','/api/server/reboot/plan','/api/server/reboot',
+  '/api/cleanup/plan','/api/cleanup/apply','/api/server/reboot/plan','/api/server/reboot','/api/processes/action',
   '/api/authorized-ips/plan','/api/authorized-ips/apply','/api/blocks/ip','/api/blocks/provider','/api/providers/evaluate',
   '/api/reports/ssh','/api/refresh','/api/alerts/configure','/api/terminal/execute']);
 const readCommands=new Set(['zone-status','cloudflare-status','status','list','ports-status','forwarding-status','services-status','mysql-status','catalog-status','games-status','games-console',
-  'cleanup-status','system-metrics','trusted-status','alerts-status']);
+  'cleanup-status','system-metrics','processes-snapshot','processes-history','trusted-status','alerts-status']);
 
 // One administrative operation across all routes/windows. No administrative queue.
 export function createCommandGuard({authorize,revalidate=authorize,sendJson,clock=()=>performance.now(),cooldownMs=3000}={}){
@@ -74,7 +74,7 @@ export function createCommandGuard({authorize,revalidate=authorize,sendJson,cloc
     if(cached&&cached.key===key&&(clock()-cached.at<readCacheMs||lease))
       return cached.error?Promise.reject(cached.error):Promise.resolve(cached.data);
     if(lease)return Promise.reject(limited());
-    if(cached&&clock()-cached.at<readCacheMs)return Promise.reject(limited('Esperá 3 segundos antes de consultar otro valor.'));
+    if(command!=='processes-history'&&cached&&clock()-cached.at<readCacheMs)return Promise.reject(limited('Esperá 3 segundos antes de consultar otro valor.'));
     if(pendingReads.size>=8)return Promise.reject(limited('Hay varias consultas pendientes. Esperá su respuesta.'));
     const request=context.getStore()?.request;
     const promise=readTail.then(async()=>{

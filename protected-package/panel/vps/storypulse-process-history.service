@@ -1,0 +1,30 @@
+[Unit]
+Description=Server Monitor process resource history
+After=local-fs.target time-sync.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 -I -B /usr/local/sbin/storypulse_process_history.py
+Restart=on-failure
+RestartSec=10
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+CPUQuota=15%
+MemoryMax=192M
+TasksMax=16
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/storypulse-security/process-history
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Only the authorized-IP setting is readable/editable; never source environment files."""
 import hashlib
 import ast

@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """SA-MP account in the existing explicit-TLS FTP service; fixed chroot only."""
 import fcntl
 import hashlib

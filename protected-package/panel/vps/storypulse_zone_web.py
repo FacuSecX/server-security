@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Server Security Monitor v3.0 - preserve the owned Zone site when publishing phpMyAdmin."""
 import json,stat
 from pathlib import Path

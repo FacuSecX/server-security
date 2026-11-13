@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 # Autonomous root bootstrap; only fixed packages/actions, no remote shell downloads.
 set -Eeuo pipefail
 umask 077
@@ -238,7 +243,7 @@ backup_path() {
     return "$code"
   fi
 }
-for path in /usr/local/lib/storypulse-security/ssh_security.ssh /etc/ufw /etc/firewalld /etc/nftables.conf /etc/storypulse-security /etc/storypulse-alerts/telegram.env /etc/systemd/journald.conf.d/60-server-monitor.conf /etc/logrotate.d/server-monitor-security /etc/sudoers.d/storypulse-securityctl /etc/systemd/system/storypulse-manual-blocks.service /etc/systemd/system/storypulse-forwarding.service /etc/systemd/system/storypulse-cleanup.service /etc/systemd/system/storypulse-cleanup.timer /etc/systemd/system/server-monitor-alerts.service /etc/systemd/system/ufw-vps-providers.service.d/storypulse-manual-blocks.conf; do
+for path in /usr/local/lib/storypulse-security/ssh_security.ssh /etc/ufw /etc/firewalld /etc/nftables.conf /etc/storypulse-security /etc/storypulse-alerts/telegram.env /etc/systemd/journald.conf.d/60-server-monitor.conf /etc/logrotate.d/server-monitor-security /etc/sudoers.d/storypulse-securityctl /etc/systemd/system/storypulse-manual-blocks.service /etc/systemd/system/storypulse-forwarding.service /etc/systemd/system/storypulse-cleanup.service /etc/systemd/system/storypulse-cleanup.timer /etc/systemd/system/storypulse-process-history.service /etc/systemd/system/server-monitor-alerts.service /etc/systemd/system/ufw-vps-providers.service.d/storypulse-manual-blocks.conf; do
   backup_path "$path"
 done
 for source in "$WORK"/*.py; do
@@ -435,6 +440,7 @@ PY_RESULT
 sudo -u "$PANEL_USER" sudo -n /usr/local/sbin/storypulse-securityctl services-status --json-input <<< '{}' > "$WORK/ftp-status.json"
 sudo -u "$PANEL_USER" sudo -n /usr/local/sbin/storypulse-securityctl mysql-status --json-input <<< '{}' > "$WORK/mysql-status.json"
 systemctl is-active storypulse-manual-blocks.service storypulse-cleanup.timer
+systemctl is-active --quiet storypulse-process-history.service
 systemctl is-enabled --quiet ufw.service
 # Output remains root-owned in the private installer workspace.
 # shellcheck disable=SC2024

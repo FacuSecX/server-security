@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Run the reviewed original SSH reporter, with fixed arguments and private output."""
 import base64
 import hashlib

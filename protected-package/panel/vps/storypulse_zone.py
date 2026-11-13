@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Server Security Monitor v3.0 - fixed, verified SA-MP Zone deployment."""
 import ipaddress,base64,contextlib,hashlib,io,json,os,pwd,re,secrets,shutil,stat,subprocess,tarfile,tempfile,time,urllib.request,urllib.parse,zipfile
 from pathlib import Path,PurePosixPath

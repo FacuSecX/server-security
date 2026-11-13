@@ -5,7 +5,7 @@ export const MENU_PERMISSIONS=Object.freeze([
  ['services-install','Instalar servicios','Servicios'],['services-manage','Gestionar servicios','Servicios'],['services-remove','Eliminar servicios','Servicios'],
  ['games-install','Instalar juegos','Juegos'],['games-manage','Gestionar juegos','Juegos'],['games-remove','Eliminar juegos','Juegos'],
  ['databases','Bases de datos','General'],['investigate','Investigar IP','General'],['blocks','Bloqueos de IP','Bloqueos'],
- ['authorized-ips','IP autorizadas','Bloqueos'],['system','Estado del sistema','Sistema'],['alerts','Alertas','Sistema'],
+ ['authorized-ips','IP autorizadas','Bloqueos'],['system','Estado del sistema','Sistema'],['processes','Procesos','Sistema'],['alerts','Alertas','Sistema'],
  ['appearance','Personalizar panel','General'],['cleanup','Borrado de datos','General']
 ].map(([id,label,group])=>Object.freeze({id,label,group})));
 export const ALL_PERMISSIONS=Object.freeze(MENU_PERMISSIONS.map(p=>p.id));
@@ -31,6 +31,7 @@ const routes=new Map([
  ['/api/mysql/login',['databases']],['/api/mysql/data',['databases']],['/api/mysql/logout',['databases']],
  ['/api/cleanup',['cleanup']],['/api/cleanup/plan',['cleanup']],['/api/cleanup/apply',['cleanup']],
  ['/api/server/reboot/plan',['system']],['/api/server/reboot',['system']],
+ ['/api/processes',['processes']],['/api/processes/action',['processes']],
  ['/api/alerts',['alerts']],['/api/alerts/configure',['alerts']],
  ['/api/authorized-ips',['authorized-ips']],['/api/authorized-ips/plan',['authorized-ips']],['/api/authorized-ips/apply',['authorized-ips']],
  ['/api/reports/ssh',['reports']],['/api/ssh-live',['ssh']],['/api/port',['port-traffic']],

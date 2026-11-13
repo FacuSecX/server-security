@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Fixed MySQL administration and authenticated data operations. No SQL/shell input."""
 import contextlib,datetime as dt,decimal,hashlib,ipaddress,json,os,re,secrets,shutil,subprocess,tempfile,time,urllib.request
 from pathlib import Path

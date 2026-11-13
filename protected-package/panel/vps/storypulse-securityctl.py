@@ -1,4 +1,9 @@
 #!/usr/bin/python3 -I
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Controlador mínimo y auditable de bloqueos manuales para StoryPulse."""
 
 import argparse
@@ -821,7 +826,7 @@ def main():
         cleanup_parser = subparsers.add_parser(name)
         cleanup_parser.add_argument("--json-input", action="store_true", required=True)
     subparsers.add_parser("cleanup-tick")
-    for name in ("system-metrics", "system-plan", "system-reboot"):
+    for name in ("system-metrics", "system-plan", "system-reboot", "processes-snapshot", "processes-history", "processes-action"):
         system_parser = subparsers.add_parser(name)
         system_parser.add_argument("--json-input", action="store_true", required=True)
     for name in ("collect", "report-download"):
@@ -865,6 +870,48 @@ def main():
         with report_locked():
             try: emit(report_module().download(request_payload(args)))
             except RuntimeError as exc: raise ControlError(str(exc)) from exc
+    if args.command.startswith("processes-"):
+        import storypulse_processes as processes
+        body = request_payload(args)
+        if args.command == "processes-snapshot":
+            from storypulse_process_history import memory_total_bytes, current_time_ms
+            result = processes.snapshot(body)
+            result["memory_total_bytes"] = memory_total_bytes()
+            result["observed_at_ms"] = current_time_ms()
+            from storypulse_process_learning import enrich
+            result.update(enrich(result['processes']))
+            emit(result)
+        if args.command == "processes-history":
+            import sqlite3
+            from storypulse_process_history import read_history
+            if isinstance(body,dict) and set(body)=={'pid','start_ticks','boot_id','window'}:
+                from storypulse_process_history import read_detail
+                try: emit({'ok':True,**read_detail(**body)})
+                except (ValueError,OSError,sqlite3.Error): raise ControlError('No se pudo consultar el gráfico detallado.') from None
+            if isinstance(body, dict) and set(body) == {'event_after', 'server_id'}:
+                from storypulse_process_learning import event_feed
+                try: emit(event_feed(body['event_after'], body['server_id']))
+                except (ValueError, OSError, sqlite3.Error): raise ControlError('No se pudo consultar el aprendizaje.') from None
+            if not isinstance(body, dict) or set(body) != {"pid", "start_ticks", "boot_id", "hours", "connection_offset"}:
+                raise ControlError("La consulta de historial no es válida.")
+            try:
+                result = read_history(**body)
+            except ValueError:
+                raise ControlError("La consulta de historial no es válida.") from None
+            except (OSError, RuntimeError, sqlite3.Error):
+                raise ControlError("No se pudo leer el historial local de procesos.") from None
+            emit({"ok": True, **result})
+        with locked():
+            if isinstance(body, dict) and body.get('action') in ('learning_finish','learning_restart'):
+                from storypulse_process_learning import change_request
+                import sqlite3
+                try: result = change_request(body, processes)
+                except (ValueError, sqlite3.Error): raise ControlError('Solicitud de aprendizaje no válida o almacenamiento ocupado.') from None
+                audit('process-' + result['action'], str(body.get('pid')), 'Aprendizaje actualizado', True)
+                emit(result)
+            result = processes.change(body)
+            audit("process-" + result["action"], str(result["pid"]), result["unit"], True)
+            emit(result)
     if args.command.startswith("system-"):
         emit(system_action(args.command, request_payload(args)))
     if args.command.startswith("cleanup-"):

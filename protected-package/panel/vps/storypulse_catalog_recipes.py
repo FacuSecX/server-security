@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Fixed native service recipes; no package, path or shell is accepted from HTTP."""
 from pathlib import Path
 import re

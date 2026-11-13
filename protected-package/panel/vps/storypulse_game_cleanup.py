@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Server Security Monitor v3.0 - ownership-scoped game removal."""
 import contextlib,grp,hashlib,json,os,pwd,re,shutil,stat
 from pathlib import Path

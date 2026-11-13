@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Allowlisted service management: isolated virtual FTP users, explicit TLS only."""
 import datetime as dt
 import hashlib

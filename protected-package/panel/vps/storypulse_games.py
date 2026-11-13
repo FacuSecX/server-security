@@ -1,6 +1,8 @@
-# Server Security Monitor v3.0
+# ==========================================
+# Panel Seguridad Monitor v4
 # Created by FacuSecX
 # https://github.com/FacuSecX/
+# ==========================================
 import contextlib
 import base64
 import fcntl

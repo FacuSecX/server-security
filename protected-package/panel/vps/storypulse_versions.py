@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Signed-repository service versions. Package names, paths and commands are fixed locally."""
 import datetime as dt
 from functools import cmp_to_key,lru_cache

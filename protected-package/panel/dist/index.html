@@ -16,6 +16,7 @@
   <script src="/personalization.js"></script>
   <script src="/alert-sounds.js"></script>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/processes.css">
   <link rel="stylesheet" href="/enhancements.css">
   <link rel="stylesheet" href="/network-traffic.css">
   <link rel="stylesheet" href="/personalization.css">
@@ -72,7 +73,7 @@
           <button class="nav-item" data-view="blocks">Bloqueos de IP</button>
           <button class="nav-item" data-view="authorized-ips">IP autorizadas</button>
         </div></details>
-        <details class="nav-group" id="systemNavGroup"><summary><span>⚙</span>Sistema<b aria-hidden="true">⌄</b></summary><div class="nav-submenu"><button class="nav-item" data-view="system">Estado del sistema</button><button class="nav-item" data-view="alerts">Alertas</button></div></details>
+        <details class="nav-group" id="systemNavGroup"><summary><span>⚙</span>Sistema<b aria-hidden="true">⌄</b></summary><div class="nav-submenu"><button class="nav-item" data-view="system">Estado del sistema</button><button class="nav-item" data-view="processes">Procesos</button><button class="nav-item" data-view="alerts">Alertas</button></div></details>
         <button class="nav-item" data-view="appearance"><span>◐</span>Personalizar panel</button>
         <button class="nav-item" data-view="cleanup"><span>⌫</span>Borrado de datos</button>
         <button class="nav-item" data-view="terminal" data-panel-admin hidden><span>⌘</span>Terminal</button>
@@ -495,6 +496,33 @@
         <div class="two-column"><article class="panel"><div class="panel-heading"><div><h2>Servicios supervisados</h2><p>Estado actual informado por systemd</p></div></div><div class="service-list" id="serviceList"></div></article><article class="panel"><div class="panel-heading"><div><h2>Conexión privada</h2><p>Canal local hacia el servidor</p></div></div><dl class="system-info"><div><dt>Servidor</dt><dd id="systemHost">—</dd></div><div><dt>IP pública</dt><dd id="systemPublicIp">—</dd></div><div><dt>Distribución del servidor</dt><dd id="systemOsInfo">Detectando…</dd></div><div><dt>CPU</dt><dd id="systemCpuInfo">—</dd></div><div><dt>RAM total</dt><dd id="systemRamInfo">—</dd></div><div><dt>Disco total</dt><dd id="systemDiskInfo">—</dd></div><div><dt>IP Tailscale</dt><dd id="systemTailscale">—</dd></div><div><dt>Canal SSH</dt><dd id="systemTransport">—</dd></div><div><dt>Monitoreo de aceptadas</dt><dd id="systemUfwLogging">—</dd></div><div><dt>Reglas de proveedores</dt><dd id="systemRules">—</dd></div><div><dt>Última sincronización</dt><dd id="systemSync">—</dd></div></dl><button class="refresh-button" id="refreshButton">Actualizar ahora</button></article></div>
         <article class="panel server-reboot-panel"><div><h2>Reiniciar el servidor</h2><p id="serverRebootStatus" role="status">Reinicia el servidor completo. Las conexiones y los servicios se interrumpirán temporalmente.</p></div><button class="danger-button" type="button" id="serverRebootOpen" disabled>Reiniciar servidor</button></article>
       </section>
+      <section class="view" id="view-processes">
+        <article class="panel processes-panel">
+          <div class="panel-heading processes-heading">
+            <div><h2>Procesos en vivo</h2><p id="processesStatus" role="status">Consultando el servidor…</p></div>
+            <button id="processesRefresh" class="secondary-button processes-refresh" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 5v6h-6"/></svg>Actualizar
+            </button>
+          </div>
+          <div class="processes-toolbar">
+            <label class="processes-search"><span>Buscar</span><input id="processesFilter" type="search" placeholder="Nombre, PID, usuario o servicio" maxlength="100"></label>
+            <label><span>Ordenar por</span><select id="processesSort"><option value="cpu_percent">CPU</option><option value="rss_bytes">RAM</option><option value="rx_bps">Red recibida (TCP)</option><option value="tx_bps">Red enviada (TCP)</option><option value="connections">Conexiones</option><option value="pid">PID</option></select></label>
+          </div>
+          <p class="appearance-hint processes-note">El anillo de CPU se llena al 100 % de un núcleo. La barra de RAM usa la capacidad total del servidor. El tráfico TCP se estima entre muestras.</p>
+          <div class="table-scroll processes-table-scroll">
+            <table class="processes-table" aria-label="Procesos en vivo">
+              <colgroup><col class="process-col-name"><col class="process-col-pid"><col class="process-col-user"><col class="process-col-cpu"><col class="process-col-ram"><col class="process-col-rx"><col class="process-col-tx"><col class="process-col-connections"></colgroup>
+              <thead><tr><th scope="col">Proceso</th><th scope="col">PID</th><th scope="col">Usuario</th><th scope="col">CPU</th><th scope="col">RAM</th><th scope="col">TCP recibido</th><th scope="col">TCP enviado</th><th scope="col">Conexiones</th></tr></thead>
+              <tbody id="processesRows"></tbody>
+            </table>
+          </div>
+          <div class="processes-pager">
+            <span id="processesPage"></span>
+            <button id="processesPrevious" class="secondary-button" type="button" disabled>Anterior</button>
+            <button id="processesNext" class="secondary-button" type="button" disabled>Siguiente</button>
+          </div>
+        </article>
+      </section>
       <section class="view" id="view-alerts">
         <article class="panel"><div class="panel-heading"><div><h2>Alertas por Telegram</h2><p>Un servicio independiente que sigue funcionando con tu PC apagada.</p></div><button type="button" class="secondary-button" id="alertsRefresh">Actualizar</button></div>
           <p class="notice" id="alertsState" role="status">Consultando el estado del servidor…</p><p id="alertsAccount"></p><p id="alertsService"></p><p id="alertsRuntime" role="status"></p><p class="appearance-hint" id="alertsCoverage"></p>
@@ -708,6 +736,82 @@
   <script src="/app.js" defer></script>
   <script src="/network-traffic.js" defer></script>
   <script src="/alerts.js" defer></script>
+<dialog class="port-dialog process-detail-dialog" id="processDetailDialog" aria-labelledby="processDetailTitle">
+  <div class="dialog-surface process-detail-surface">
+    <div class="process-detail-header">
+      <div><span class="process-detail-kicker">Detalle del proceso</span><h2 id="processDetailTitle">Proceso</h2><p id="processDetailSubtitle"></p></div>
+      <button id="processDetailClose" class="secondary-button" type="button">Cerrar</button>
+    </div>
+    <div class="process-detail-content">
+      <dl id="processDetailMetrics" class="process-metrics"></dl>
+      <section class="process-learning" aria-labelledby="processLearningTitle">
+        <h3 id="processLearningTitle">Aprendizaje del comportamiento</h3>
+        <p id="processLearningState" role="status">Esperando datos del VPS…</p>
+        <p id="processLearningInfo"></p><div class="process-learning-actions">
+          <button id="processLearningFinish" type="button" class="secondary-button" disabled>Finalizar aprendizaje</button>
+          <button id="processLearningRestart" type="button" class="secondary-button" disabled>Reiniciar aprendizaje · 7 días</button>
+        </div>
+      </section>
+      <section class="process-history" aria-labelledby="processHistoryTitle">
+        <div class="process-history-header">
+          <div><h3 id="processHistoryTitle">Historial de actividad</h3><p id="processHistoryStatus" class="process-section-note" role="status">Consultando el historial…</p></div>
+          <div class="process-periods" id="processHistoryPeriods" role="group" aria-label="Rango del historial">
+            <button type="button" data-hours="24" aria-pressed="true">24 h</button><button type="button" data-hours="168" aria-pressed="false">7 días</button><button type="button" data-hours="720" aria-pressed="false">30 días</button>
+          </div>
+        </div>
+        <div class="process-chart-grid">
+          <figure class="process-chart"><figcaption><strong>CPU</strong><span>Pico por intervalo</span></figcaption><button type="button" class="process-expand-chart" data-expand-chart="processCpuChart" aria-label="Ampliar gráfico de CPU">⤢ Ampliar</button><div id="processCpuChart" class="process-chart-plot process-chart-expandable" role="button" tabindex="0" aria-label="Ampliar gráfico de CPU"></div></figure>
+          <figure class="process-chart"><figcaption><strong>RAM residente</strong><span>Pico por intervalo</span></figcaption><button type="button" class="process-expand-chart" data-expand-chart="processRamChart" aria-label="Ampliar gráfico de RAM">⤢ Ampliar</button><div id="processRamChart" class="process-chart-plot process-chart-expandable" role="button" tabindex="0" aria-label="Ampliar gráfico de RAM"></div></figure>
+          <figure class="process-chart"><figcaption><strong>Tráfico TCP</strong><span>Pico por intervalo</span></figcaption><button type="button" class="process-expand-chart" data-expand-chart="processNetworkChart" aria-label="Ampliar gráfico de red TCP">⤢ Ampliar</button><div id="processNetworkChart" class="process-chart-plot process-chart-expandable" role="button" tabindex="0" aria-label="Ampliar gráfico de red TCP"></div></figure>
+        </div>
+      </section>
+      <section aria-labelledby="processConnectionsTitle">
+        <h3 id="processConnectionsTitle">Conexiones en vivo</h3><p id="processDetailCoverage" class="process-section-note"></p>
+        <div class="table-scroll process-sockets-scroll"><table class="process-sockets-table"><thead><tr><th scope="col">IP remota</th><th scope="col">País</th><th scope="col">ISP</th><th scope="col">Puerto local</th><th scope="col">Puerto remoto</th><th scope="col">Protocolo</th><th scope="col">Estado</th><th scope="col">Recibido</th><th scope="col">Enviado</th></tr></thead><tbody id="processSocketRows"></tbody></table></div>
+      </section>
+      <section aria-labelledby="processHistoryConnectionTitle">
+        <h3 id="processHistoryConnectionTitle">Historial de conexiones</h3>
+        <p class="process-section-note">Pares observados por el VPS durante el período elegido. Incluye conexiones que ya terminaron.</p>
+        <div class="table-scroll process-sockets-scroll"><table class="process-sockets-table process-history-sockets"><thead><tr><th scope="col">IP remota</th><th scope="col">País</th><th scope="col">ISP</th><th scope="col">Puerto local</th><th scope="col">Puerto remoto</th><th scope="col">Protocolo</th><th scope="col">Último estado</th><th scope="col">Primera vez</th><th scope="col">Última vez</th></tr></thead><tbody id="processHistoryConnectionRows"></tbody></table></div>
+        <div class="processes-pager process-history-pager">
+          <span id="processHistoryConnectionPage"></span>
+          <button id="processHistoryConnectionPrevious" class="secondary-button" type="button" disabled>Anterior</button>
+          <button id="processHistoryConnectionNext" class="secondary-button" type="button" disabled>Siguiente</button>
+        </div>
+      </section>
+    </div>
+    <div class="process-detail-footer">
+      <p id="processDetailStatus" role="status"></p>
+      <div class="process-detail-actions">
+        <button id="processStop" class="danger-button process-action-button" type="button" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M6.4 6.4a8 8 0 1 0 11.2 0"/></svg>Detener
+        </button>
+        <button id="processRestart" class="secondary-button process-action-button" type="button" disabled>
+          <svg class="process-reset-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.4 6M20 5v6h-6"/></svg>Reiniciar servicio
+        </button>
+      </div>
+    </div>
+  </div>
+</dialog>
+<dialog class="confirm-dialog" id="processActionDialog" aria-labelledby="processActionTitle">
+  <h2 id="processActionTitle">Confirmar acción</h2><p id="processActionText"></p>
+  <label class="port-confirm-check"><input id="processActionCheck" type="checkbox"> Revisé el proceso y confirmo la acción.</label>
+  <p id="processActionStatus" class="error" role="status"></p>
+  <div class="confirm-actions"><button id="processActionCancel" class="secondary-button" type="button">Cancelar</button><button id="processActionApply" class="danger-button" type="button" disabled>Confirmar</button></div>
+</dialog>
+<dialog class="port-dialog process-chart-popup" id="processChartDialog" aria-labelledby="processChartLargeTitle">
+  <header class="process-zoom-header"><div><span class="process-detail-kicker">Gráfico ampliado</span><h2 id="processChartLargeTitle">Actividad del proceso</h2><p id="processChartLargeSubtitle"></p></div>
+    <div class="process-zoom-window-actions"><button type="button" class="secondary-button" id="processChartMaximize" aria-pressed="false">Maximizar</button><button type="button" class="secondary-button" id="processChartLargeClose">Cerrar</button></div>
+  </header>
+  <div class="process-zoom-toolbar"><div class="process-periods" id="processChartWindows" role="group" aria-label="Período del gráfico ampliado">
+    <button type="button" data-window="15m" aria-pressed="false">15 min</button><button type="button" data-window="1h" aria-pressed="true">1 h</button><button type="button" data-window="6h" aria-pressed="false">6 h</button><button type="button" data-window="24h" aria-pressed="false">24 h</button><button type="button" data-window="48h" aria-pressed="false">2 días</button><button type="button" data-window="7d" aria-pressed="false">7 días</button>
+  </div><label for="processChartStyle">Estilo <select id="processChartStyle"><option value="line">Líneas</option><option value="area">Área</option><option value="bars">Barras</option></select></label></div>
+  <div id="processChartValues" class="process-zoom-values"></div>
+  <div class="process-zoom-plot-wrap"><div id="processChartLargePlot" class="process-zoom-plot"></div><div id="processChartTooltip" class="process-zoom-tooltip" hidden></div></div>
+  <footer class="process-zoom-footer"><p id="processChartLargeStatus" role="status"></p><p id="processChartLastUpdate"></p><small>Los picos por intervalo se guardan en este VPS con el panel cerrado. Pasá el cursor por el gráfico para ver los valores.</small></footer>
+</dialog>
+<script src="/processes.js?v=3" defer></script>
+
 <dialog class="confirm-dialog" id="mysqlDialog" aria-labelledby="mysqlDialogTitle"><h2 id="mysqlDialogTitle">Confirmar MySQL</h2><p id="mysqlSummary"></p><p class="ports-explanation" id="mysqlNotice"></p><p class="error" id="mysqlError"></p><label class="port-confirm-check"><input type="checkbox" id="mysqlConfirm"> Revisé los detalles y confirmo esta operación.</label><div class="forwarding-form-actions"><button class="primary-button" id="mysqlApply" disabled>Aplicar cambio</button><button class="secondary-button" id="mysqlCancel">Cancelar</button></div></dialog>
 <dialog class="confirm-dialog db-record-dialog" id="dbRecordDialog" aria-labelledby="dbRecordTitle"><h2 id="dbRecordTitle">Registro</h2><form class="forwarding-form" id="dbRecordForm"><div id="dbRecordFields"></div><p class="error" id="dbRecordError"></p><div class="forwarding-form-actions"><button class="primary-button" type="submit">Confirmar y guardar</button><button class="secondary-button" type="button" id="dbRecordCancel">Cancelar</button></div></form></dialog>
 <script src="mysql.js" defer></script>

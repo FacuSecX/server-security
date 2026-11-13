@@ -110,6 +110,37 @@ export function createNotifications(db,{isAuthorized=()=>false,now=()=>Math.floo
       else db.prepare('UPDATE panel_alert_outbox SET attempts=attempts+1,next_try=?+MIN(900,15*(1 << MIN(attempts,6))) WHERE event_id=?').run(now(),event.event_id);
     }
   }
-  return {ingest,snapshot,markRead,deleteRead,reconcileAuthorization,accessDenied,pendingTelegram,finishTelegram};
+  db.exec("CREATE TABLE IF NOT EXISTS process_notice_cursor(id INTEGER PRIMARY KEY CHECK(id=1),server_id TEXT NOT NULL,after_seq INTEGER NOT NULL)");
+  function processCursor(){
+    const row=db.prepare('SELECT server_id,after_seq FROM process_notice_cursor WHERE id=1').get();
+    return row?{server_id:row.server_id,after:row.after_seq}:{server_id:'',after:0};
+  }
+  function ingestProcessFeed(feed){
+    if(feed?.server_id===null)return;
+    if(!feed||!/^[a-f0-9]{32}$/.test(feed.server_id)||!Array.isArray(feed.events)||feed.events.length>200||
+      !Number.isSafeInteger(feed.next_after)||feed.next_after<0)throw new Error('Registro de aprendizaje no válido.');
+    const labels={cpu_percent:'CPU',rss_bytes:'RAM',rx_bps:'TCP recibido',tx_bps:'TCP enviado'};
+    const value=(key,n)=>key==='cpu_percent'?n.toFixed(1)+' %':(n/1048576).toFixed(2)+' MiB'+(key.endsWith('bps')?'/s':'');
+    let prior=processCursor().server_id===feed.server_id?processCursor().after:0;
+    for(const event of feed.events){
+      if(event.kind!=='process_anomaly'||event.server_id!==feed.server_id||!/^[a-f0-9]{32}$/.test(event.id)||
+        !Number.isSafeInteger(event.seq)||event.seq<=prior||event.seq>feed.next_after||
+        !Number.isSafeInteger(event.timestamp)||event.timestamp<1||typeof event.name!=='string'||event.name.length>128||
+        typeof event.unit!=='string'||event.unit.length>256||!event.metrics||typeof event.metrics!=='object'||Array.isArray(event.metrics)||
+        !Object.keys(event.metrics).length||Object.keys(event.metrics).some(k=>!Object.hasOwn(labels,k)||
+          !['value','threshold'].every(v=>Number.isFinite(event.metrics[k]?.[v])&&event.metrics[k][v]>=0)))throw new Error('Alerta de aprendizaje no válida.');
+      prior=event.seq;
+    }
+    db.exec('BEGIN IMMEDIATE');
+    try{
+      for(const event of feed.events){
+        const detail='Actividad anormal en '+event.name+(event.unit?' · '+event.unit:'')+': '+Object.entries(event.metrics).map(([k,v])=>labels[k]+' '+value(k,v.value)+' (umbral '+value(k,v.threshold)+')').join('; ')+'. Aumento sostenido durante al menos 60 segundos. Revisá el proceso.';
+        db.prepare("INSERT OR IGNORE INTO notifications(event_id,timestamp,service,ip,type,detail,admin_only) VALUES(?,?,'Procesos','','process_anomaly',?,1)").run(event.id,event.timestamp,detail);
+      }
+      db.prepare('INSERT OR REPLACE INTO process_notice_cursor VALUES(1,?,?)').run(feed.server_id,feed.next_after);
+      db.exec('COMMIT');
+    }catch(error){db.exec('ROLLBACK');throw error;}
+  }
+  return {ingest,snapshot,markRead,deleteRead,reconcileAuthorization,accessDenied,pendingTelegram,finishTelegram,processCursor,ingestProcessFeed};
 
 }

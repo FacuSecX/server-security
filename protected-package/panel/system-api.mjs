@@ -65,5 +65,5 @@ export function createSystemApi({securityCtl,requireActionToken,readJsonBody,sen
     }catch(error){job={...job,status:'error',message:'No se pudo confirmar el reinicio. '+error.message};sendJson(response,502,{error:job.message,reboot_job:job});}
     finally{planning=false;}return true;
   }
-  return {handle,busy};
+  return {handle,busy,memoryTotal:()=>cache?.data?.memory?.total??null};
 }

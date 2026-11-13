@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Bounded, fixed-action native service catalog with signed package transactions."""
 import datetime as dt,hashlib,json,os,re,shutil,stat,subprocess,time
 from functools import cmp_to_key,lru_cache

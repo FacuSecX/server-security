@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Server Security Monitor v3.0 - install only the fixed Zone runtime modules."""
 import ast,base64,hashlib,json,os,stat,tempfile,time,sys,shutil
 from pathlib import Path

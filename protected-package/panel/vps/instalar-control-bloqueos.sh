@@ -1,4 +1,9 @@
 #!/bin/sh
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 set -eu
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -12,9 +17,11 @@ if [ ! -f "$source_file" ]; then
   exit 1
 fi
 
-for file in storypulse_cloudflare.py storypulse_service_flow.py storypulse_wordpress_db.py storypulse_game_ftp.py storypulse_games.py storypulse_webapps.py storypulse_catalog.py storypulse_catalog_recipes.py storypulse_catalog_archives.py storypulse_archives.py storypulse_versions.py storypulse_uninstall.py storypulse_trusted.py storypulse_platform.py storypulse-securityctl.py collector.py storypulse_report.py storypulse_ports.py storypulse_forwarding.py storypulse_services.py storypulse_mysql.py storypulse_cleanup.py storypulse_system.py storypulse_panel_alerts.py; do
+for file in storypulse_cloudflare.py storypulse_service_flow.py storypulse_wordpress_db.py storypulse_game_ftp.py storypulse_games.py storypulse_webapps.py storypulse_catalog.py storypulse_catalog_recipes.py storypulse_catalog_archives.py storypulse_archives.py storypulse_versions.py storypulse_uninstall.py storypulse_trusted.py storypulse_platform.py storypulse-securityctl.py collector.py storypulse_report.py storypulse_ports.py storypulse_forwarding.py storypulse_services.py storypulse_mysql.py storypulse_cleanup.py storypulse_system.py storypulse_processes.py storypulse_process_learning.py storypulse_process_history.py storypulse-process-history.service storypulse_panel_alerts.py; do
   [ -f "$(dirname "$source_file")/$file" ] || { echo "ERROR: falta $file" >&2; exit 1; }
-  python3 -c 'import ast,sys; ast.parse(open(sys.argv[1],encoding="utf-8-sig").read())' "$(dirname "$source_file")/$file"
+  case "$file" in
+    *.py) python3 -c 'import ast,sys; ast.parse(open(sys.argv[1],encoding="utf-8-sig").read())' "$(dirname "$source_file")/$file" ;;
+  esac
 done
 # Minimal server images may not create this local-administration directory.
 install -d -o root -g root -m 0755 /usr/local/sbin
@@ -51,9 +58,14 @@ fi
 install -o root -g root -m 0644 "$(dirname "$source_file")/storypulse_forwarding.py" /usr/local/sbin/storypulse_forwarding.py
 /bin/sh "$(dirname "$source_file")/instalar-forwarding.sh"
 install -o root -g root -m 0644 "$ports_file" /usr/local/sbin/storypulse_ports.py
-install -o root -g root -m 0755 "$source_file" /usr/local/sbin/storypulse-securityctl
 install -o root -g root -m 0644 "$(dirname "$source_file")/storypulse_cleanup.py" /usr/local/sbin/storypulse_cleanup.py
 install -o root -g root -m 0644 "$(dirname "$source_file")/storypulse_system.py" /usr/local/sbin/storypulse_system.py
+install -o root -g root -m 0644 "$(dirname "$source_file")/storypulse_processes.py" /usr/local/sbin/storypulse_processes.py
+install -o root -g root -m 0644 "$(dirname "$source_file")/storypulse_process_history.py" /usr/local/sbin/storypulse_process_history.py
+install -o root -g root -m 0644 "$(dirname "$source_file")/storypulse_process_learning.py" /usr/local/sbin/storypulse_process_learning.py
+install -d -o root -g root -m 0700 /var/lib/storypulse-security/process-history
+install -o root -g root -m 0644 "$(dirname "$source_file")/storypulse-process-history.service" /etc/systemd/system/storypulse-process-history.service
+install -o root -g root -m 0755 "$source_file" /usr/local/sbin/storypulse-securityctl
 install -o root -g root -m 0644 "$(dirname "$source_file")/storypulse-cleanup.service" /etc/systemd/system/storypulse-cleanup.service
 install -o root -g root -m 0644 "$(dirname "$source_file")/storypulse-cleanup.timer" /etc/systemd/system/storypulse-cleanup.timer
 install -d -o root -g root -m 0755 /var/lib/storypulse-cleanup
@@ -113,6 +125,8 @@ fi
 
 systemctl daemon-reload
 systemctl enable --now storypulse-manual-blocks.service
+systemctl enable storypulse-process-history.service
+systemctl restart storypulse-process-history.service
 /usr/local/sbin/storypulse-securityctl sync
 /usr/local/sbin/storypulse-securityctl status
 

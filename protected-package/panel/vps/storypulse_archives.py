@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Official historical catalogs and scoped, authenticated package transactions."""
 import concurrent.futures,datetime as dt,hashlib,html,json,os,re,shutil,stat,tarfile,tempfile,urllib.parse,urllib.request,urllib.error,xmlrpc.client
 from pathlib import Path

@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Fixed Linux distribution/package profiles. Never accept package names from HTTP."""
 import json
 import os

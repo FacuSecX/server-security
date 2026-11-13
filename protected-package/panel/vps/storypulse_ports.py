@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Read live sockets/UFW and change one explicitly confirmed TCP/UDP port.
 
 No shell interpolation, scans or service restarts. UFW owns persistence.

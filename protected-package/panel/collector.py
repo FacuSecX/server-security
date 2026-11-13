@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Recolector efimero de solo lectura ejecutado por SSH en el servidor."""
 
 import csv

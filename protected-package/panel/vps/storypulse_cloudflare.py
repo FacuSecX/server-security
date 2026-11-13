@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Transactional Cloudflare origin protection. Fixed paths, official sources, no shell.
 
 Policy and rollback copies belong to this VPS. PEM keys never enter API results,

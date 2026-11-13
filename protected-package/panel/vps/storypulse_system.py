@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Small server snapshots and one fixed, explicitly confirmed reboot operation."""
 import contextlib
 import fcntl

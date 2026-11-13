@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Shared, fixed web-service prerequisites; no caller-selected ports or commands."""
 import os,stat,time
 from pathlib import Path

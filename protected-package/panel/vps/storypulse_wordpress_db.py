@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Provision one local WordPress database/account; never publish its password."""
 import os,secrets
 from types import SimpleNamespace

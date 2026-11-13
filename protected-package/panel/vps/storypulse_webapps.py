@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Fixed upstream web applications with isolated PHP and owned virtual hosts."""
 import hashlib,ipaddress,json,os,pwd,re,secrets,shutil,stat,subprocess,tempfile,time,urllib.parse,urllib.request,zipfile
 from pathlib import Path,PurePosixPath

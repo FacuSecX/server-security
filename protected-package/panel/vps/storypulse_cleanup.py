@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Fixed-scope log cleanup and durable schedules. Never accepts paths or commands."""
 import contextlib
 import fcntl

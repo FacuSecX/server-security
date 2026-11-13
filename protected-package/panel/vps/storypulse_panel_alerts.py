@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Independent confirmed-login notifier. No shell input, no legacy bot mutations."""
 import contextlib
 import datetime as dt
@@ -411,7 +416,16 @@ def send_pending(db,config,policy):
         if not current.get('enabled') or current.get('nonce')!=config.get('nonce'): break
         event=json.loads(payload)
         when=dt.datetime.fromtimestamp(event['timestamp'],dt.timezone.utc).strftime('%d/%m/%Y %H:%M:%S UTC')
-        if event.get('kind')=='panel_permission_denied':
+        if event.get('kind')=='process_anomaly':
+            try:
+                from storypulse_process_learning import event_active, alert_text
+                active=event_active(event)
+            except (ImportError,OSError,ValueError,RuntimeError,sqlite3.Error):
+                db.execute('UPDATE events SET next_try=? WHERE id=?',(int(time.time())+60,identity));db.commit();continue
+            if not active:
+                db.execute("UPDATE events SET state='superseded',payload='{}' WHERE id=?",(identity,));db.commit();continue
+            text=alert_text(event,socket.gethostname())
+        elif event.get('kind')=='panel_permission_denied':
             if event.get('target') not in PANEL_TARGETS or not re.fullmatch('[a-z0-9][a-z0-9_.-]{2,31}',str(event.get('username',''))):
                 db.execute("UPDATE events SET state='invalid',payload='{}' WHERE id=?",(identity,));db.commit();continue
             text=('🚨 INTENTO DE ACCESO RESTRINGIDO EN EL PANEL\n\nServidor: '+socket.gethostname()[:128]+
@@ -455,6 +469,20 @@ def main():
         os.close(instance)
 
 
+def enqueue_process_events(db, enabled):
+    from storypulse_process_learning import event_feed
+    cursor=get_state(db,'process_cursor',dict(server_id='',after=0))
+    feed=event_feed(cursor['after'],cursor['server_id'])
+    if not feed['server_id']:return 0
+    count=0
+    for event in feed['events']:
+        result=db.execute('INSERT OR IGNORE INTO events(id,timestamp,payload,state) VALUES(?,?,?,?)',
+            (event['id'],event['timestamp'],json.dumps(event) if enabled else '{}','pending' if enabled else 'paused'))
+        count+=result.rowcount
+    set_state(db,'process_cursor',dict(server_id=feed['server_id'],after=feed['next_after']))
+    return count
+
+
 def run_daemon(db,collector,trusted):
     last_db_check=-1000000;last_prune=0;poll_after=0
     if get_state(db,'since') is None: set_state(db,'since',int(time.time()));db.commit()
@@ -483,6 +511,10 @@ def run_daemon(db,collector,trusted):
                 ports=known_ports.get(KINDS.get(event.get('kind')),[])
                 if ports: event['port']=','.join(str(port) for port in ports)
             enqueue(db,events,policy,bool(config.get('enabled')))
+            try:
+                enqueue_process_events(db,bool(config.get('enabled')))
+            except (ImportError,OSError,ValueError,RuntimeError,sqlite3.Error):
+                runtime['process_learning_error']='No se pudo leer el aprendizaje; las alertas de acceso siguen activas.'
             if not config.get('enabled'):
                 db.execute("UPDATE events SET state='paused',payload='{}' WHERE state='pending'")
             db.commit()
@@ -508,7 +540,7 @@ def run_daemon(db,collector,trusted):
             config=configuration()
             if get_state(db,'welcome')!=identity:
                 telegram(config['token'],'sendMessage',{'chat_id':config['chat_id'],
-                    'text':'Server Monitor: alertas '+('activadas' if config.get('enabled') else 'desactivadas')+'.\nSólo accesos autenticados desde IP no autorizadas.', 'reply_markup':buttons(config)})
+                    'text':'Server Monitor: alertas '+('activadas' if config.get('enabled') else 'desactivadas')+'.\nAccesos autenticados desde IP no autorizadas y actividad anormal de procesos después del aprendizaje.', 'reply_markup':buttons(config)})
                 set_state(db,'welcome',identity);db.commit()
             send_pending(db,config,trusted.policy())
             runtime['last_sent']=get_state(db,'last_sent')

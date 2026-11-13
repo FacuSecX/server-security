@@ -28,6 +28,7 @@ import {createNotifications} from './notifications.mjs';
 import {readJsonBody,readResponseJson} from './http-input.mjs';
 import {downloadReport} from './report-download.mjs';
 import {createSystemApi} from './system-api.mjs';
+import {createProcessesApi} from './processes-api.mjs';
 import {createCleanupApi} from './cleanup-api.mjs';
 import {createHistoryStore} from './cleanup-store.mjs';
 import {createMysqlApi} from './mysql-api.mjs';
@@ -781,11 +782,11 @@ const webappControllerFlow=createWebappControllerFlow({root:ROOT,runRemote});
 async function executeSecurityCtl(command, payload = null) {
   await webappControllerFlow.ensure(command,payload);
   if(['zone-status','zone-plan','zone-apply','zone-repair','zone-forum-credentials'].includes(command))return zoneControllerFlow.execute(command,payload||{});
-  if (!new Set(["status", "list", "block", "unblock", "provider-block", "provider-unblock", "sync", "report-ssh", "report-download", "ports-status", "ports-plan", "ports-apply", "forwarding-status", "forwarding-plan", "forwarding-apply", "services-status", "services-plan", "services-apply", "mysql-status", "mysql-plan", "mysql-apply", "mysql-data", "mysql-structure", "cleanup-status", "cleanup-plan", "cleanup-apply", "system-metrics", "system-plan", "system-reboot", "trusted-status", "trusted-plan", "trusted-apply", "alerts-status", "alerts-configure", "alerts-panel-events", "services-versions", "catalog-status", "catalog-versions", "catalog-plan", "catalog-apply", "games-status", "games-console", "games-plan", "games-apply", "cloudflare-status", "cloudflare-plan", "cloudflare-apply"]).has(command)) {
+  if (!new Set(["status", "list", "block", "unblock", "provider-block", "provider-unblock", "sync", "report-ssh", "report-download", "ports-status", "ports-plan", "ports-apply", "forwarding-status", "forwarding-plan", "forwarding-apply", "services-status", "services-plan", "services-apply", "mysql-status", "mysql-plan", "mysql-apply", "mysql-data", "mysql-structure", "cleanup-status", "cleanup-plan", "cleanup-apply", "system-metrics", "system-plan", "system-reboot", "processes-snapshot", "processes-history", "processes-action", "trusted-status", "trusted-plan", "trusted-apply", "alerts-status", "alerts-configure", "alerts-panel-events", "services-versions", "catalog-status", "catalog-versions", "catalog-plan", "catalog-apply", "games-status", "games-console", "games-plan", "games-apply", "cloudflare-status", "cloudflare-plan", "cloudflare-apply"]).has(command)) {
     throw new Error("Operación remota no permitida");
   }
   if(['games-plan','games-apply'].includes(command))await zoneControllerFlow.execute('zone-runtime-check',{});
-  const usesInput = ["block", "unblock", "provider-block", "provider-unblock", "report-ssh", "report-download", "ports-status", "ports-plan", "ports-apply", "forwarding-status", "forwarding-plan", "forwarding-apply", "services-status", "services-plan", "services-apply", "mysql-status", "mysql-plan", "mysql-apply", "mysql-data", "mysql-structure", "cleanup-status", "cleanup-plan", "cleanup-apply", "system-metrics", "system-plan", "system-reboot", "trusted-status", "trusted-plan", "trusted-apply", "alerts-status", "alerts-configure", "alerts-panel-events", "services-versions", "catalog-status", "catalog-versions", "catalog-plan", "catalog-apply", "games-status", "games-console", "games-plan", "games-apply", "cloudflare-status", "cloudflare-plan", "cloudflare-apply"].includes(command);
+  const usesInput = ["block", "unblock", "provider-block", "provider-unblock", "report-ssh", "report-download", "ports-status", "ports-plan", "ports-apply", "forwarding-status", "forwarding-plan", "forwarding-apply", "services-status", "services-plan", "services-apply", "mysql-status", "mysql-plan", "mysql-apply", "mysql-data", "mysql-structure", "cleanup-status", "cleanup-plan", "cleanup-apply", "system-metrics", "system-plan", "system-reboot", "processes-snapshot", "processes-history", "processes-action", "trusted-status", "trusted-plan", "trusted-apply", "alerts-status", "alerts-configure", "alerts-panel-events", "services-versions", "catalog-status", "catalog-versions", "catalog-plan", "catalog-apply", "games-status", "games-console", "games-plan", "games-apply", "cloudflare-status", "cloudflare-plan", "cloudflare-apply"].includes(command);
   const remote = `sudo -n ${SECURITY_CTL} ${command}${usesInput ? " --json-input" : ""}`;
   try {
     const timeout = command.startsWith("cloudflare-") ? 300000 : command === "games-apply" ? 18*60*1000 : command === "games-plan" ? 90000 : command.startsWith("catalog-") ? (command === "catalog-status" ? 90000 : 30*60*1000) : ["mysql-apply","services-apply"].includes(command)&&payload?.action==="upgrade" ? 45*60*1000 : command === "services-versions" ? 10*60*1000 : command === "alerts-configure" ? 60000 : command === "trusted-apply" ? 90000 : command === "cleanup-apply" ? 300000 : command === "mysql-apply" ? 18*60*1000 : command === "services-apply" ? 18*60*1000 : command === "report-ssh" ? 31 * 60 * 1000 : (command.startsWith("provider-") || ["ports-apply","forwarding-apply"].includes(command)) ? 120000 : 35000;
@@ -1175,7 +1176,7 @@ function publicProviderEvaluation(evaluation, controller = null) {
 function staticFile(request, response) {
   const url = new URL(request.url, "http://localhost");
   const relative = url.pathname === "/" ? "index.html" : url.pathname === "/login" ? "login.html" : decodeURIComponent(url.pathname.slice(1));
-  if (!["zone.js","cloudflare.js","cloudflare.css","network-traffic.js","network-traffic.css","avatars.js","avatars.css","avatars.svg","games.js","games.css","game-logo-samp.png","service-logo-phpmyadmin.svg","service-logo-wordpress.svg","service-logo-nginx.svg","service-logo-apache.svg","service-logo-php.svg","service-logo-certbot.svg","service-logo-docker.svg","service-logo-postgresql.svg","service-logo-redis.svg","service-logo-fail2ban.svg","service-logo-wireguard.svg","service-logo-postfix.svg","service-logo-mysql.svg","service-logo-ftp.svg","catalog-services.js","catalog-services.css","service-versions.js","panel-users.js","terminal.js","terminal.css","login.html","auth.js","auth.css","index.html","alerts.js","alert-sounds.js","app.js","mysql.js","cleanup.js","personalization.js","command-guard.js","personalization.css","notifications.js","notifications.css","authorized-ips.js","server-info.js","server-info.css","server-eye.svg","styles.css","enhancements.css"].includes(relative)) { response.writeHead(403); response.end(); return; }
+  if (!["zone.js","cloudflare.js","cloudflare.css","network-traffic.js","network-traffic.css","avatars.js","avatars.css","avatars.svg","games.js","games.css","game-logo-samp.png","service-logo-phpmyadmin.svg","service-logo-wordpress.svg","service-logo-nginx.svg","service-logo-apache.svg","service-logo-php.svg","service-logo-certbot.svg","service-logo-docker.svg","service-logo-postgresql.svg","service-logo-redis.svg","service-logo-fail2ban.svg","service-logo-wireguard.svg","service-logo-postfix.svg","service-logo-mysql.svg","service-logo-ftp.svg","catalog-services.js","catalog-services.css","service-versions.js","panel-users.js","terminal.js","terminal.css","login.html","auth.js","auth.css","index.html","alerts.js","alert-sounds.js","app.js","processes.js","processes.css","mysql.js","cleanup.js","personalization.js","command-guard.js","personalization.css","notifications.js","notifications.css","authorized-ips.js","server-info.js","server-info.css","server-eye.svg","styles.css","enhancements.css"].includes(relative)) { response.writeHead(403); response.end(); return; }
   const path = join(STATIC_ROOT, relative);
   if (!existsSync(path) || !statSync(path).isFile()) { response.writeHead(404); response.end("No encontrado"); return; }
   const types = { ".html":"text/html; charset=utf-8", ".css":"text/css; charset=utf-8", ".js":"text/javascript; charset=utf-8", ".svg":"image/svg+xml", ".png":"image/png" };
@@ -1314,6 +1315,13 @@ const asnDatabase=createAsnDatabase(DATA_ROOT);
 const secondaryAsnDatabase=createAsnDatabase(DATA_ROOT,{source:'iptoasn'});
 const networkOperators={lookup:ip=>asnDatabase.lookup(ip)||secondaryAsnDatabase.lookup(ip)};
 const geoCache=createGeoCache({db,countries:countryDatabase,operators:networkOperators,generation:()=>historyStore.generation()});
+const processesApi=createProcessesApi({notifications,securityCtl,requireActionToken,readJsonBody,sendJson,actionToken:ACTION_TOKEN,
+  otherBusy:()=>systemApi.busy(),memoryTotal:()=>systemApi.memoryTotal(),geo:ip=>{
+    if(!isGeoCandidate(ip))return {country:"Red privada o local",isp:""};
+    if(!config.geoLookup)return {};
+    const country=countryDatabase.lookup(ip),operator=networkOperators.lookup(ip);
+    return {country_code:country?.country_code,country:country?.country,isp:operator?.isp};
+  }});
 const preferencesDb = new DatabaseSync(scope.preferences);
 preferencesDb.exec('CREATE TABLE IF NOT EXISTS panel_profiles(user_id TEXT PRIMARY KEY,avatar TEXT NOT NULL)');
 if(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='panel_profiles'").get()){
@@ -1374,6 +1382,7 @@ const server = http.createServer(async (request, response) => {
     if(await profileApi.handle(request,response,url))return;
     if(url.pathname==='/api/commands/status'&&request.method==='GET'){sendJson(response,200,{ok:true,...commandGuard.state(),action_token:ACTION_TOKEN});return;}
     if(url.pathname==='/api/notifications' && request.method==='GET') {
+      if(connection.connected)void processesApi.syncEvents();
       const cursor=url.searchParams.get('before');
       if(cursor!==null && !/^[1-9]\d{0,15}$/.test(cursor)){sendJson(response,400,{error:'Cursor no válido.'});return;}
       try{sendJson(response,200,{...notifications.snapshot(cursor===null?null:Number(cursor),request.panelUser),
@@ -1392,6 +1401,7 @@ const server = http.createServer(async (request, response) => {
     if(await trustedApi.handle(request,response,url))return;
     if(await systemApi.handle(request,response,url))return;
     if(request.method==="POST"&&systemApi.busy()){sendJson(response,409,{error:"El servidor está reiniciándose. Esperá a que se reconecte."});return;}
+    if(await processesApi.handle(request,response,url))return;
     if(await cleanupApi.handle(request,response,url))return;
     if(await zoneApi.handle(request,response,url))return;
     if(await gamesApi.handle(request,response,url))return;
@@ -1703,6 +1713,7 @@ server.listen(listenPort, listenHost, () => {
   void refreshCountryDatabase();
   countryRefreshTimer=setInterval(()=>void refreshCountryDatabase(),86400000);countryRefreshTimer.unref();
   collectNow();
+  const processAlertTimer=setInterval(()=>{if(connection.connected)void processesApi.syncEvents();},30000);processAlertTimer.unref();
   refreshTimer = setInterval(collectNow, Math.max(10, Number(config.refreshSeconds || 20)) * 1000);
 });
 

@@ -1,4 +1,9 @@
 #!/bin/sh
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 set -eu
 [ "$(id -u)" -eq 0 ] || { echo "Ejecutar como root" >&2; exit 1; }
 install -d -o root -g root -m 0700 /etc/storypulse-security

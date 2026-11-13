@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Official package history for the fixed service catalog; signatures remain mandatory."""
 import concurrent.futures,datetime as dt,hashlib,html,json,os,re,shutil,stat,time,urllib.parse,urllib.request,xmlrpc.client
 from pathlib import Path

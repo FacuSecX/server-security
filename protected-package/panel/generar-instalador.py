@@ -1,3 +1,8 @@
+# ==========================================
+# Panel Seguridad Monitor v4
+# Created by FacuSecX
+# https://github.com/FacuSecX/
+# ==========================================
 """Regenerar el instalador autónomo desde sus fuentes revisables; sólo usa la biblioteca estándar."""
 import base64
 import hashlib
@@ -8,7 +13,7 @@ import zipfile
 
 root=Path(__file__).resolve().parent
 names=['storypulse_cloudflare.py','storypulse_service_flow.py','storypulse_wordpress_db.py','storypulse_game_ftp.py','storypulse_games.py','storypulse_webapps.py','storypulse_catalog.py', 'storypulse_catalog_recipes.py', 'storypulse_catalog_archives.py','storypulse_archives.py','storypulse_versions.py','storypulse_uninstall.py','storypulse_panel_alerts.py','server-monitor-alerts.service','storypulse_trusted.py','storypulse_platform.py','storypulse-securityctl.py','storypulse_ports.py','storypulse_forwarding.py','storypulse_services.py',
-       'storypulse_mysql.py','storypulse_cleanup.py','storypulse_system.py','storypulse_report.py',
+       'storypulse_mysql.py','storypulse_cleanup.py','storypulse_system.py','storypulse_processes.py','storypulse_process_history.py','storypulse_process_learning.py','storypulse-process-history.service','storypulse_report.py',
        'storypulse-cleanup.service','storypulse-cleanup.timer','instalar-forwarding.sh','instalar-control-bloqueos.sh']
 payload=io.BytesIO()
 with zipfile.ZipFile(payload,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as archive:
